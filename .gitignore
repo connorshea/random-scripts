@@ -48,3 +48,17 @@ build-iPhoneSimulator/
 
 # unless supporting rvm < 1.11.0 or doing something fancy, ignore this:
 .rvmrc
+
+.DS_Store
+
+# Some files I don't want to commit
+wikidata/games/games.json
+wikidata/games/games2.json
+wikidata/games/games.txt
+wikidata/pcgw/leftovers.json
+wikidata/pcgw/leftovers_backup.json
+wikidata/games/seed_data.json
+wikidata/pcgw/pcgw_steam_ids.csv
+wikidata/games/pretty_games.json
+wikidata/pcgw/pcgw_games_list.json
+wikidata/pcgw/catalog.txt
