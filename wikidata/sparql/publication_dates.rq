@@ -1,0 +1,8 @@
+# Get the platforms and publication dates for a game
+SELECT ?platform ?platformLabel ?publicationDate WHERE {
+  wd:Q193581 p:P577 ?statement.
+  ?statement ps:P577 ?publicationDate.
+  OPTIONAL{ ?statement pq:P400 ?platform . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,en". }
+}
+LIMIT 100
