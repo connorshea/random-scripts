@@ -44,7 +44,7 @@ module WikidataHelper
     response = JSON.load(open(api_uri))
 
     if response['success'] && action == 'wbgetentities'
-      return response['entities']["#{ids}"]
+      return response['entities']
     elsif action == 'wbgetclaims'
       return response['claims']
     else
@@ -94,12 +94,16 @@ module WikidataHelper
   #
   # Get labels ('names') of the given items
   #
-  # @param [String] ids <description>
+  # @param [String, Array<String>] ids Wikidata IDs, e.g. 'Q123' or ['Q123', 'Q124']
   # @param [String, Array<String>] languages A country code or array of country codes, e.g. 'en' or ['en', 'es']
   #
   # @return [Hash] Hash of labels in the listed languages.
   #
   def get_labels(ids:, languages: nil)
+    if ids.is_a?(Array)
+      ids = ids.join('|')
+    end
+
     if languages.is_a?(Array)
       languages = languages.join('|')
     end
@@ -111,9 +115,8 @@ module WikidataHelper
       languages: languages
     )
 
-    return response['labels']
+    return response
   end
-
   alias_method :get_names, :get_labels
 
   #
@@ -149,15 +152,16 @@ module WikidataHelper
     return sitelinks
   end
 
-#
-# Get claims about an Wikidata entity.
-#
-# @param [string] entity Wikidata entity ID, e.g. 'Q123'
-# @param [string] property Wikidata property ID, e.g. 'P123'
-#
-# @return [Hash] Returns a hash with the properties of the entity.
-#
-def get_claims(entity:, property: nil)
+  #
+  # Get claims about an Wikidata entity.
+  # https://www.wikidata.org/w/api.php?action=help&modules=wbgetclaims
+  #
+  # @param [string] entity Wikidata entity ID, e.g. 'Q123'
+  # @param [string] property Wikidata property ID, e.g. 'P123'
+  #
+  # @return [Hash] Returns a hash with the properties of the entity.
+  #
+  def get_claims(entity:, property: nil)
     response = api(
       action: 'wbgetclaims',
       entity: entity,
@@ -179,9 +183,36 @@ def claims_helper(game, property)
   return WikidataHelper.get_claims(entity: game, property: PROPERTIES[property])
 end
 
+def get_english_names(ids)
+  names = WikidataHelper.get_names(ids: ids, languages: 'en')
+  name_hashes = []
+
+  names.each do |prop_id, name|
+    name_hashes << { id: prop_id, name: name['labels']['en']['value'] }
+  end
+
+  return name_hashes
+end
+
+# Convenience method for returning just one name.
 def get_english_name(id)
-  names = WikidataHelper.get_names(ids: id, languages: 'en')
-  return names['en']['value']
+  names = get_english_names(id)
+  return names.first
+end
+
+def get_entity_properties(id)
+  claims = WikidataHelper.get_claims(entity: id)
+  return claims.keys
+end
+
+def get_pretty_entity_properties(id)
+  keys = get_entity_properties(id)
+  keys.sort! { |a, b| a[1..-1].to_i <=> b[1..-1].to_i }
+  keys_hash = {}
+
+  names_hashes = get_english_names(keys)
+
+  return names_hashes
 end
 
 # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
@@ -225,3 +256,5 @@ puts prettify(half_life_developers)
 half_life['developers'] = half_life_developers[PROPERTIES[:developers]]
 
 puts prettify(half_life)
+
+puts prettify(get_pretty_entity_properties(games['Half-Life'.to_sym]))
