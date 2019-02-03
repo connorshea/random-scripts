@@ -1,0 +1,10 @@
+# Get the platforms and the platform's respective publication dates for games
+SELECT DISTINCT ?itemLabel ?platformLabel ?platformDate WHERE {
+  ?item wdt:P31 wd:Q7889 .
+  OPTIONAL { 
+    ?item p:P577 ?publicationDate . 
+    ?publicationDate pq:P400 ?platform ; ps:P577 ?platformDate
+  }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,en". }
+}
+LIMIT 10
