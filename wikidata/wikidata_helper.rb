@@ -278,7 +278,7 @@ def get_platforms(id)
     platform_id = platform['mainsnak']['datavalue']['value']['id']
     puts 'has qualifiers!' unless platform['qualifiers'].nil?
     platform_ids << platform_id
-  end3
+  end
   
   return platform_ids
 end
@@ -308,7 +308,6 @@ games = {
   "Kirby's Epic Yarn": 'Q1361363',
   'Doom': 'Q513867'
 }
-
 
 games.each do |name, id|
   game = {}
