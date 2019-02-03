@@ -234,14 +234,89 @@ end
 def get_properties(id, property)
   claims = claims_helper(id, property)
   properties = claims[PROPERTIES[property]]
-  property_ids = []
-  properties.each do |property|
-    property_id = property['mainsnak']['datavalue']['value']['id']
-    puts 'qualifiers!' unless property['qualifiers'].nil?
-    property_ids << property_id
+  datatype = properties.first['mainsnak']['datatype']
+
+  if datatype == 'wikidata-item'
+    return_properties = parse_item_properties(properties)
+  elsif datatype == 'time'
+    return_properties = parse_time_properties(properties)
+  else
+    return_properties = parse_item_properties(properties)
   end
   
+  return return_properties
+end
+
+def parse_item_properties(properties)
+  property_ids = []
+
+  properties.each do |property|
+    property_id = property['mainsnak']['datavalue']['value']['id']
+    unless property['qualifiers'].nil?
+      property_ids << { property_id: property_id, qualifiers: parse_item_qualifiers(property['qualifiers']) }
+      next
+    end
+    property_ids << property_id
+  end
+
   return property_ids
+end
+
+def parse_time_properties(publication_dates)
+  publication_date_times = []
+
+  publication_dates.each do |publication_date|
+    publication_date_time = publication_date['mainsnak']['datavalue']['value']['time']
+    unless publication_date['qualifiers'].nil?
+      publication_date_times << { time: Date.rfc3339(publication_date_time[1..-1]), qualifiers: parse_time_qualifiers(publication_date['qualifiers']) }
+      next
+    end
+    # Wikidata's API outputs dates in the format "+2016-05-13T00:00:00Z"
+    # This removes the first character so that Date.rfc3339 can parse it.
+    publication_date_times << Date.rfc3339(publication_date_time[1..-1])
+  end
+  
+  return publication_date_times
+end
+
+def parse_item_qualifiers(qualifiers)
+  return_value = {}
+
+  qualifiers.each do |property, qualifiers_for_property|
+    platforms = [] if property == PROPERTIES[:platforms]
+    qualifiers_for_property.each do |qualifier|
+      if property == PROPERTIES[:platforms]
+        platforms << qualifier['datavalue']['value']['id']
+      else
+        puts "MISSED QUALIFIER: #{property}" if QUALIFIER_TYPES[property.to_sym].nil?
+      end
+    end
+
+    return_value['platforms'] = platforms if property == PROPERTIES[:platforms]
+  end
+
+  return return_value
+end
+
+def parse_time_qualifiers(qualifiers)
+  return_value = {}
+
+  qualifiers.each do |property, qualifiers_for_property|
+    # We don't care about place of publication for now.
+    next if QUALIFIER_TYPES[property.to_sym] == :place_of_publication
+    platforms = [] if property == PROPERTIES[:platforms]
+    qualifiers_for_property.each do |qualifier|
+      if property == PROPERTIES[:platforms]
+        platforms << qualifier['datavalue']['value']['id']
+      else
+        puts "MISSED QUALIFIER: #{property}" if QUALIFIER_TYPES[property.to_sym].nil?
+      end
+    end
+
+    return_value['platforms'] = platforms if property == PROPERTIES[:platforms]
+  end
+
+  return return_value
 end
 
 def get_genres(id)
@@ -261,18 +336,7 @@ def get_platforms(id)
 end
 
 def get_publication_dates(id)
-  claims = claims_helper(id, :publication_dates)
-  publication_dates = claims[PROPERTIES[:publication_dates]]
-  publication_date_times = []
-  publication_dates.each do |publication_date|
-    publication_date_time = publication_date['mainsnak']['datavalue']['value']['time']
-    puts 'qualifiers!' unless publication_date['qualifiers'].nil?
-    # Wikidata's API outputs dates in the format "+2016-05-13T00:00:00Z"
-    # This removes the first character so that Date.rfc3339 can parse it.
-    publication_date_times << Date.rfc3339(publication_date_time[1..-1])
-  end
-  
-  return publication_date_times
+  return get_properties(id, :publication_dates)
 end
 
 # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
@@ -288,6 +352,13 @@ PROPERTIES = {
   developers: 'P178',
   genres: 'P136',
   publication_dates: 'P577'
+}
+
+QUALIFIER_TYPES = {
+  P123: :publisher,
+  P291: :place_of_publication,
+  P361: :part_of,
+  P400: :platform
 }
 
 games = {
