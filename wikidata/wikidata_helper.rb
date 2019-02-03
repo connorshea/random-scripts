@@ -244,6 +244,45 @@ def get_genres(id)
   return genre_ids
 end
 
+def get_developers(id)
+  claims = claims_helper(id, :developers)
+  developers = claims[PROPERTIES[:developers]]
+  developer_ids = []
+  developers.each do |developer|
+    developer_id = developer['mainsnak']['datavalue']['value']['id']
+    puts 'has qualifiers!' unless developer['qualifiers'].nil?
+    developer_ids << developer_id
+  end
+  
+  return developer_ids
+end
+
+def get_publishers(id)
+  claims = claims_helper(id, :publishers)
+  publishers = claims[PROPERTIES[:publishers]]
+  publisher_ids = []
+  publishers.each do |publisher|
+    publisher_id = publisher['mainsnak']['datavalue']['value']['id']
+    puts 'has qualifiers!' unless publisher['qualifiers'].nil?
+    publisher_ids << publisher_id
+  end
+  
+  return publisher_ids
+end
+
+def get_platforms(id)
+  claims = claims_helper(id, :platforms)
+  platforms = claims[PROPERTIES[:platforms]]
+  platform_ids = []
+  platforms.each do |platform|
+    platform_id = platform['mainsnak']['datavalue']['value']['id']
+    puts 'has qualifiers!' unless platform['qualifiers'].nil?
+    platform_ids << platform_id
+  end3
+  
+  return platform_ids
+end
+
 # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
 # WikidataHelper.get_descriptions(ids: 'Q42')
 # WikidataHelper.get_datatype(ids: 'P42')
@@ -270,18 +309,17 @@ games = {
   'Doom': 'Q513867'
 }
 
-half_life = {}
 
-half_life['name'] = get_english_name(games['Half-Life'.to_sym])
+games.each do |name, id|
+  game = {}
 
-half_life['genres'] = get_genres(games['Half-Life'.to_sym])
+  game['name'] = get_english_name(id)
+  game['genres'] = get_genres(id)
+  game['developers'] = get_developers(id)
+  game['publishers'] = get_publishers(id)
+  game['platforms'] = get_platforms(id)
 
-half_life_developers = claims_helper(games['Half-Life'.to_sym], :developers)
-# puts prettify(half_life_developers)
+  puts prettify(game)
 
-half_life['developers'] = half_life_developers[PROPERTIES[:developers]]
-
-5.times { puts }
-puts prettify(half_life)
-
-# print_entity_properties(games['Half-Life'.to_sym])
+  # print_entity_properties(id)
+end
