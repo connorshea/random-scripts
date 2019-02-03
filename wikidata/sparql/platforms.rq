@@ -1,0 +1,41 @@
+SELECT ?item ?itemLabel ?Windows ?MacOS ?Linux ?PS2 ?PS3 ?PS4 ?Xbox ?Xbox360 ?XboxOne with {
+  SELECT ?item WHERE 
+  {
+    ?item wdt:P31 wd:Q7889 .
+  } LIMIT 100 } as %i
+WHERE
+{
+  include %i
+          
+  # Windows
+  optional {?item wdt:P400 ?Q1406 . filter (?Q1406=wd:Q1406) }
+  # MacOS
+  optional {?item wdt:P400 ?Q14116 . filter (?Q14116=wd:Q14116) }
+  # Linux
+  optional {?item wdt:P400 ?Q388 . filter (?Q388=wd:Q388) }
+  # PS2
+  optional {?item wdt:P400 ?Q10680 . filter (?Q10680=wd:Q10680) }
+  # PS3
+  optional {?item wdt:P400 ?Q10683 . filter (?Q10683=wd:Q10683) }
+  # PS4
+  optional {?item wdt:P400 ?Q5014725 . filter (?Q5014725=wd:Q5014725) }
+  # Xbox
+  optional {?item wdt:P400 ?Q132020 . filter (?Q132020=wd:Q132020) }
+  # Xbox 360
+  optional {?item wdt:P400 ?Q48263 . filter (?Q48263=wd:Q48263) }
+  # Xbox One
+  optional {?item wdt:P400 ?Q13361286 . filter (?Q13361286=wd:Q13361286) }
+  
+  # Bind 'em
+  bind(if(bound(?Q1406),true,false) as ?Windows)
+  bind(if(bound(?Q14116),true,false) as ?MacOS)
+  bind(if(bound(?Q388),true,false) as ?Linux)
+  bind(if(bound(?Q10680),true,false) as ?PS2)
+  bind(if(bound(?Q10683),true,false) as ?PS3)
+  bind(if(bound(?Q5014725),true,false) as ?PS4)
+  bind(if(bound(?Q132020),true,false) as ?Xbox)
+  bind(if(bound(?Q48263),true,false) as ?Xbox360)
+  bind(if(bound(?Q13361286),true,false) as ?XboxOne)
+  
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,en". }
+}

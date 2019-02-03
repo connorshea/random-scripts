@@ -1,0 +1,12 @@
+SELECT ?item ?itemLabel (group_concat(distinct ?platform;separator=", ") as ?platforms) (group_concat(distinct ?publication_date;separator=", ") as ?publication_dates) with {
+  SELECT ?item WHERE 
+  {
+    ?item wdt:P31 wd:Q7889 .
+  } LIMIT 10 } as %i
+WHERE
+{ 
+  include %i
+  ?item wdt:P400 ?value . ?value rdfs:label ?platform . filter(lang(?platform)="en")
+  ?item wdt:P577 ?publication_date .
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,en". }
+} group by ?item ?itemLabel

@@ -1,0 +1,12 @@
+SELECT ?item ?itemLabel (group_concat(distinct ?platform;separator=", ") as ?platforms) (group_concat(distinct ?genre;separator=", ") as ?genres) with {
+  SELECT ?item WHERE 
+  {
+    ?item wdt:P31 wd:Q7889 .
+  } LIMIT 10 } as %i
+WHERE
+{ 
+  include %i
+  ?item wdt:P400 ?platform.
+  ?item wdt:P136 ?genre.
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,en". }
+} group by ?item ?itemLabel
