@@ -183,6 +183,7 @@ def claims_helper(game, property)
   return WikidataHelper.get_claims(entity: game, property: PROPERTIES[property])
 end
 
+# Takes an array of ids and returns an array of hashes, each with an id and English name.
 def get_english_names(ids)
   names = WikidataHelper.get_names(ids: ids, languages: 'en')
   name_hashes = []
@@ -205,7 +206,8 @@ def get_entity_properties(id)
   return claims.keys
 end
 
-def get_pretty_entity_properties(id)
+# Return an array of an entity's properties and the English names for each.
+def pretty_get_entity_properties(id)
   keys = get_entity_properties(id)
   keys.sort! { |a, b| a[1..-1].to_i <=> b[1..-1].to_i }
   keys_hash = {}
@@ -213,6 +215,33 @@ def get_pretty_entity_properties(id)
   names_hashes = get_english_names(keys)
 
   return names_hashes
+end
+
+#
+# Prints a list of an entity's properties.
+#
+# @param [String] id The Wikidata identifier, e.g. 'Q123' or 'P123'.
+#
+# @return [void]
+#
+def print_entity_properties(id)
+  properties = pretty_get_entity_properties(id)
+  properties.each do |property|
+    puts "#{property[:id]}: #{property[:name]}"
+  end
+end
+
+def get_genres(id)
+  claims = claims_helper(id, :genres)
+  genres = claims[PROPERTIES[:genres]]
+  genre_ids = []
+  genres.each do |genre|
+    genre_id = genre['mainsnak']['datavalue']['value']['id']
+    puts 'qualifiers!' unless genre['qualifiers'].nil?
+    genre_ids << genre_id
+  end
+  
+  return genre_ids
 end
 
 # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
@@ -245,16 +274,14 @@ half_life = {}
 
 half_life['name'] = get_english_name(games['Half-Life'.to_sym])
 
-half_life_genres = claims_helper(games['Half-Life'.to_sym], :genres)
-puts prettify(half_life_genres)
-
-half_life['genres'] = half_life_genres[PROPERTIES[:genres]]
+half_life['genres'] = get_genres(games['Half-Life'.to_sym])
 
 half_life_developers = claims_helper(games['Half-Life'.to_sym], :developers)
-puts prettify(half_life_developers)
+# puts prettify(half_life_developers)
 
 half_life['developers'] = half_life_developers[PROPERTIES[:developers]]
 
+5.times { puts }
 puts prettify(half_life)
 
-puts prettify(get_pretty_entity_properties(games['Half-Life'.to_sym]))
+# print_entity_properties(games['Half-Life'.to_sym])
