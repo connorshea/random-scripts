@@ -231,56 +231,33 @@ def print_entity_properties(id)
   end
 end
 
-def get_genres(id)
-  claims = claims_helper(id, :genres)
-  genres = claims[PROPERTIES[:genres]]
-  genre_ids = []
-  genres.each do |genre|
-    genre_id = genre['mainsnak']['datavalue']['value']['id']
-    puts 'qualifiers!' unless genre['qualifiers'].nil?
-    genre_ids << genre_id
+def get_properties(id, property)
+  claims = claims_helper(id, property)
+  properties = claims[PROPERTIES[property]]
+  property_ids = []
+  properties.each do |property|
+    property_id = property['mainsnak']['datavalue']['value']['id']
+    puts 'qualifiers!' unless property['qualifiers'].nil?
+    property_ids << property_id
   end
   
-  return genre_ids
+  return property_ids
+end
+
+def get_genres(id)
+  return get_properties(id, :genres)
 end
 
 def get_developers(id)
-  claims = claims_helper(id, :developers)
-  developers = claims[PROPERTIES[:developers]]
-  developer_ids = []
-  developers.each do |developer|
-    developer_id = developer['mainsnak']['datavalue']['value']['id']
-    puts 'has qualifiers!' unless developer['qualifiers'].nil?
-    developer_ids << developer_id
-  end
-  
-  return developer_ids
+  return get_properties(id, :developers)
 end
 
 def get_publishers(id)
-  claims = claims_helper(id, :publishers)
-  publishers = claims[PROPERTIES[:publishers]]
-  publisher_ids = []
-  publishers.each do |publisher|
-    publisher_id = publisher['mainsnak']['datavalue']['value']['id']
-    puts 'has qualifiers!' unless publisher['qualifiers'].nil?
-    publisher_ids << publisher_id
-  end
-  
-  return publisher_ids
+  return get_properties(id, :publishers)
 end
 
 def get_platforms(id)
-  claims = claims_helper(id, :platforms)
-  platforms = claims[PROPERTIES[:platforms]]
-  platform_ids = []
-  platforms.each do |platform|
-    platform_id = platform['mainsnak']['datavalue']['value']['id']
-    puts 'has qualifiers!' unless platform['qualifiers'].nil?
-    platform_ids << platform_id
-  end
-  
-  return platform_ids
+  return get_properties(id, :platforms)
 end
 
 # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
