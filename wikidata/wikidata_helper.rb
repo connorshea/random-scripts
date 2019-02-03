@@ -260,6 +260,21 @@ def get_platforms(id)
   return get_properties(id, :platforms)
 end
 
+def get_publication_dates(id)
+  claims = claims_helper(id, :publication_dates)
+  publication_dates = claims[PROPERTIES[:publication_dates]]
+  publication_date_times = []
+  publication_dates.each do |publication_date|
+    publication_date_time = publication_date['mainsnak']['datavalue']['value']['time']
+    puts 'qualifiers!' unless publication_date['qualifiers'].nil?
+    # Wikidata's API outputs dates in the format "+2016-05-13T00:00:00Z"
+    # This removes the first character so that Date.rfc3339 can parse it.
+    publication_date_times << Date.rfc3339(publication_date_time[1..-1])
+  end
+  
+  return publication_date_times
+end
+
 # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
 # WikidataHelper.get_descriptions(ids: 'Q42')
 # WikidataHelper.get_datatype(ids: 'P42')
@@ -286,16 +301,22 @@ games = {
   'Doom': 'Q513867'
 }
 
+games_data = []
+
 games.each do |name, id|
   game = {}
 
-  game['name'] = get_english_name(id)
+  game.merge!(get_english_name(id))
   game['genres'] = get_genres(id)
   game['developers'] = get_developers(id)
   game['publishers'] = get_publishers(id)
   game['platforms'] = get_platforms(id)
+  game['release_dates'] = get_publication_dates(id)
 
-  puts prettify(game)
+  games_data << game
 
+  # puts prettify(game)
   # print_entity_properties(id)
 end
+
+puts prettify(games_data)
