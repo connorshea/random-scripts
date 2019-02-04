@@ -1,4 +1,5 @@
 require "json"
+require "date"
 require './wikidata_helper.rb'
 include WikidataHelper
 
@@ -35,7 +36,7 @@ games.each do |game|
     game['developers'].each do |developer|
       if developer['qualifiers'].nil?
         release_developers << developer['property_id']
-      elsif developer['qualifiers']['platforms'].include?(game_platform['property_id'])
+      elsif developer['qualifiers']['platforms']&.include?(game_platform['property_id'])
         release_developers << developer['property_id']
       elsif developer['qualifiers'].keys.length > 1
         puts "Developers has unhandled qualifier case"
@@ -50,7 +51,7 @@ games.each do |game|
     game['publishers'].each do |publisher|
       if publisher['qualifiers'].nil?
         release_publishers << publisher['property_id']
-      elsif publisher['qualifiers']['platforms'].include?(game_platform['property_id'])
+      elsif publisher['qualifiers']['platforms']&.include?(game_platform['property_id'])
         release_publishers << publisher['property_id']
       elsif publisher['qualifiers'].keys.length > 1
         puts "Publishers has unhandled qualifier case?"
@@ -59,6 +60,26 @@ games.each do |game|
     end
 
     release[:publishers] = release_publishers
+
+    publication_dates = []
+    date_with_platform_exists = false
+    game['release_dates'].each do |publication_date|
+      if publication_date['qualifiers'].nil?
+        publication_dates << publication_date['time']
+      elsif publication_date['qualifiers']['platforms']&.include?(game_platform['property_id'])
+        release[:release_date] = publication_date['time']
+        date_with_platform_exists = true
+      else
+        publication_dates << publication_date['time']
+      end
+    end
+
+    # # If a release date specifies a given platform, that release date should take precident.
+    # # If no release date is specified for a given platform, we try to get the earliest date.
+    # unless date_with_platform_exists
+    #   publication_dates.sort! { |a, b| Date.parse(a) <=> Date.parse(b) }
+    #   release[:release_date] = publication_dates.first
+    # end
 
     releases << release
   end
