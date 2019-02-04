@@ -1,0 +1,533 @@
+[
+  {
+    "id": "Q279744",
+    "name": "Half-Life",
+    "genres": [
+      {
+        "property_id": "Q185029"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q193559"
+      },
+      {
+        "property_id": "Q1046593",
+        "qualifiers": {
+          "platforms": [
+            "Q10680"
+          ]
+        }
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q494614"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q388"
+      },
+      {
+        "property_id": "Q10680"
+      },
+      {
+        "property_id": "Q1406"
+      },
+      {
+        "property_id": "Q14116"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "1998-11-08",
+        "qualifiers": {
+          "platforms": [
+            "Q1406"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "Q76255",
+    "name": "Call of Duty 4: Modern Warfare",
+    "genres": [
+      {
+        "property_id": "Q185029"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q731482"
+      },
+      {
+        "property_id": "Q738135",
+        "qualifiers": {
+          "platforms": [
+            "Q14116"
+          ]
+        }
+      },
+      {
+        "property_id": "Q382543",
+        "qualifiers": {
+          "platforms": [
+            "Q8079"
+          ]
+        }
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q200491"
+      },
+      {
+        "property_id": "Q207784"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q48263"
+      },
+      {
+        "property_id": "Q10683"
+      },
+      {
+        "property_id": "Q1406"
+      },
+      {
+        "property_id": "Q14116"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "2007-11-05",
+        "qualifiers": {
+          "platforms": [
+            "Q48263",
+            "Q10683",
+            "Q1406"
+          ]
+        }
+      },
+      {
+        "time": "2007-11-07",
+        "qualifiers": {
+          "platforms": [
+            "Q48263",
+            "Q10683",
+            "Q1406"
+          ]
+        }
+      },
+      {
+        "time": "2007-11-09",
+        "qualifiers": {
+          "platforms": [
+            "Q48263",
+            "Q10683",
+            "Q1406"
+          ]
+        }
+      },
+      {
+        "time": "2007-12-27",
+        "qualifiers": {
+          "platforms": [
+            "Q48263",
+            "Q10683",
+            "Q1406"
+          ]
+        }
+      },
+      {
+        "time": "2009-09-10",
+        "qualifiers": {
+          "platforms": [
+            "Q48263",
+            "Q10683",
+            "Q1406"
+          ]
+        }
+      },
+      {
+        "time": "2008-09-26",
+        "qualifiers": {
+          "platforms": [
+            "Q14116"
+          ]
+        }
+      },
+      {
+        "time": "2011-01-28",
+        "qualifiers": {
+          "platforms": [
+            "Q14116"
+          ]
+        }
+      },
+      {
+        "time": "2009-11-10",
+        "qualifiers": {
+          "platforms": [
+            "Q8079"
+          ]
+        }
+      },
+      {
+        "time": "2016-11-04"
+      }
+    ]
+  },
+  {
+    "id": "Q193581",
+    "name": "Half-Life 2",
+    "genres": [
+      {
+        "property_id": "Q185029"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q193559"
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q193559"
+      },
+      {
+        "property_id": "Q494614"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q1406"
+      },
+      {
+        "property_id": "Q132020"
+      },
+      {
+        "property_id": "Q48263"
+      },
+      {
+        "property_id": "Q10683"
+      },
+      {
+        "property_id": "Q14116"
+      },
+      {
+        "property_id": "Q388"
+      },
+      {
+        "property_id": "Q94"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "2004-11-16",
+        "qualifiers": {
+          "platforms": [
+            "Q1406"
+          ]
+        }
+      },
+      {
+        "time": "2005-11-15",
+        "qualifiers": {
+          "platforms": [
+            "Q132020"
+          ]
+        }
+      },
+      {
+        "time": "2005-11-18",
+        "qualifiers": {
+          "platforms": [
+            "Q132020"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "Q18951",
+    "name": "Half-Life 2: Episode One",
+    "genres": [
+      {
+        "property_id": "Q185029"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q193559"
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q193559"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q388"
+      },
+      {
+        "property_id": "Q48263"
+      },
+      {
+        "property_id": "Q10683"
+      },
+      {
+        "property_id": "Q1406"
+      },
+      {
+        "property_id": "Q14116"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "2006-06-01",
+        "qualifiers": {
+          "platforms": [
+            "Q1406"
+          ]
+        }
+      },
+      {
+        "time": "2008-05-22",
+        "qualifiers": {
+          "platforms": [
+            "Q48263"
+          ]
+        }
+      },
+      {
+        "time": "2007-10-10",
+        "qualifiers": {
+          "platforms": [
+            "Q48263"
+          ]
+        }
+      },
+      {
+        "time": "2007-10-19",
+        "qualifiers": {
+          "platforms": [
+            "Q48263"
+          ]
+        }
+      },
+      {
+        "time": "2007-10-25",
+        "qualifiers": {
+          "platforms": [
+            "Q48263"
+          ]
+        }
+      },
+      {
+        "time": "2007-12-11",
+        "qualifiers": {
+          "platforms": [
+            "Q10683"
+          ]
+        }
+      },
+      {
+        "time": "2007-12-14",
+        "qualifiers": {
+          "platforms": [
+            "Q10683"
+          ]
+        }
+      },
+      {
+        "time": "2007-12-20",
+        "qualifiers": {
+          "platforms": [
+            "Q10683"
+          ]
+        }
+      },
+      {
+        "time": "2010-05-26",
+        "qualifiers": {
+          "platforms": [
+            "Q14116"
+          ]
+        }
+      },
+      {
+        "time": "2013-06-26",
+        "qualifiers": {
+          "platforms": [
+            "Q388"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "Q553308",
+    "name": "Half-Life 2: Episode Two",
+    "genres": [
+      {
+        "property_id": "Q185029"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q193559"
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q193559"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q388"
+      },
+      {
+        "property_id": "Q48263"
+      },
+      {
+        "property_id": "Q10683"
+      },
+      {
+        "property_id": "Q1406"
+      },
+      {
+        "property_id": "Q14116"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "2007-10-10"
+      }
+    ]
+  },
+  {
+    "id": "Q279446",
+    "name": "Portal 2",
+    "genres": [
+      {
+        "property_id": "Q54767"
+      },
+      {
+        "property_id": "Q185029"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q193559"
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q193559"
+      },
+      {
+        "property_id": "Q173941"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q1406"
+      },
+      {
+        "property_id": "Q14116"
+      },
+      {
+        "property_id": "Q10683"
+      },
+      {
+        "property_id": "Q48263"
+      },
+      {
+        "property_id": "Q388"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "2011-04-19"
+      },
+      {
+        "time": "2011-04-19",
+        "qualifiers": {
+        }
+      }
+    ]
+  },
+  {
+    "id": "Q1361363",
+    "name": "Kirby's Epic Yarn",
+    "genres": [
+      {
+        "property_id": "Q828322"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q3049567"
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q8093"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q8079"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "2010-10-14"
+      }
+    ]
+  },
+  {
+    "id": "Q513867",
+    "name": "Doom",
+    "genres": [
+      {
+        "property_id": "Q185029"
+      }
+    ],
+    "developers": [
+      {
+        "property_id": "Q204474"
+      }
+    ],
+    "publishers": [
+      {
+        "property_id": "Q684425"
+      }
+    ],
+    "platforms": [
+      {
+        "property_id": "Q5014725"
+      },
+      {
+        "property_id": "Q1406"
+      },
+      {
+        "property_id": "Q13361286"
+      },
+      {
+        "property_id": "Q19610114"
+      }
+    ],
+    "release_dates": [
+      {
+        "time": "2016-05-13"
+      }
+    ]
+  }
+]

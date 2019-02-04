@@ -256,7 +256,7 @@ def parse_item_properties(properties)
       property_ids << { property_id: property_id, qualifiers: parse_item_qualifiers(property['qualifiers']) }
       next
     end
-    property_ids << property_id
+    property_ids << { property_id: property_id }
   end
 
   return property_ids
@@ -273,7 +273,7 @@ def parse_time_properties(publication_dates)
     end
     # Wikidata's API outputs dates in the format "+2016-05-13T00:00:00Z"
     # This removes the first character so that Date.rfc3339 can parse it.
-    publication_date_times << Date.rfc3339(publication_date_time[1..-1])
+    publication_date_times << { time: Date.rfc3339(publication_date_time[1..-1]) }
   end
   
   return publication_date_times
@@ -390,4 +390,7 @@ games.each do |name, id|
   # print_entity_properties(id)
 end
 
-puts prettify(games_data)
+pretty_games_data = prettify(games_data)
+
+# puts pretty_games_data
+File.write('wikidata_games_data.json', pretty_games_data)
