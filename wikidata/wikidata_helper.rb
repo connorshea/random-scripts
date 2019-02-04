@@ -234,6 +234,7 @@ end
 def get_properties(id, property)
   claims = claims_helper(id, property)
   properties = claims[PROPERTIES[property]]
+  return nil if claims[PROPERTIES[property]].nil?
   datatype = properties.first['mainsnak']['datatype']
 
   if datatype == 'wikidata-item'
@@ -339,6 +340,10 @@ def get_publication_dates(id)
   return get_properties(id, :publication_dates)
 end
 
+def get_pcgamingwiki_id(id)
+  return get_properties(id, :pcgamingwiki_id)
+end
+
 # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
 # WikidataHelper.get_descriptions(ids: 'Q42')
 # WikidataHelper.get_datatype(ids: 'P42')
@@ -351,7 +356,8 @@ PROPERTIES = {
   platforms: 'P400',
   developers: 'P178',
   genres: 'P136',
-  publication_dates: 'P577'
+  publication_dates: 'P577',
+  pcgamingwiki_id: 'P6337'
 }
 
 QUALIFIER_TYPES = {
@@ -383,6 +389,9 @@ games.each do |name, id|
   game['publishers'] = get_publishers(id)
   game['platforms'] = get_platforms(id)
   game['release_dates'] = get_publication_dates(id)
+  pcgamingwiki_id = get_pcgamingwiki_id(id)
+  game['pcgamingwiki_id'] = pcgamingwiki_id.first['property_id'] unless pcgamingwiki_id.nil?
+  game['pcgamingwiki_id'] = nil if pcgamingwiki_id.nil?
 
   games_data << game
 
