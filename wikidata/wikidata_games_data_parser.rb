@@ -24,6 +24,10 @@ games.each do |game|
   pretty_game_hash[:name] = game['name']
   pretty_game_hash[:wikidata_id] = game['id']
   pretty_game_hash[:genres] = game['genres'].map { |genre| genre['property_id'] }
+
+  unless game['pcgamingwiki_id'].nil?
+    pretty_game_hash[:pcgamingwiki_id] = game['pcgamingwiki_id']
+  end
   
   game['platforms'].each do |game_platform|
     release = {}

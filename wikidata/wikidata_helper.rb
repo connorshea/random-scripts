@@ -241,6 +241,8 @@ def get_properties(id, property)
     return_properties = parse_item_properties(properties)
   elsif datatype == 'time'
     return_properties = parse_time_properties(properties)
+  elsif datatype == 'external-id'
+    return_properties = parse_external_id_properties(properties)
   else
     return_properties = parse_item_properties(properties)
   end
@@ -278,6 +280,12 @@ def parse_time_properties(publication_dates)
   end
   
   return publication_date_times
+end
+
+def parse_external_id_properties(properties)
+  external_id = properties.first['mainsnak']['datavalue']['value']
+
+  return external_id
 end
 
 def parse_item_qualifiers(qualifiers)
@@ -384,14 +392,12 @@ games.each do |name, id|
   game = {}
 
   game.merge!(get_english_name(id))
+  game['pcgamingwiki_id'] = get_pcgamingwiki_id(id)
   game['genres'] = get_genres(id)
   game['developers'] = get_developers(id)
   game['publishers'] = get_publishers(id)
   game['platforms'] = get_platforms(id)
   game['release_dates'] = get_publication_dates(id)
-  pcgamingwiki_id = get_pcgamingwiki_id(id)
-  game['pcgamingwiki_id'] = pcgamingwiki_id.first['property_id'] unless pcgamingwiki_id.nil?
-  game['pcgamingwiki_id'] = nil if pcgamingwiki_id.nil?
 
   games_data << game
 
