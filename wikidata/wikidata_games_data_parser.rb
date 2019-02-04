@@ -36,8 +36,10 @@ games.each do |game|
       if developer['qualifiers'].nil?
         release_developers << developer['property_id']
       elsif developer['qualifiers']['platforms'].include?(game_platform['property_id'])
-        puts developer['qualifiers']['platforms']
         release_developers << developer['property_id']
+      elsif developer['qualifiers'].keys.length > 1
+        puts "Developers has unhandled qualifier case"
+        puts developer['qualifiers']
       end
     end
 
@@ -49,8 +51,10 @@ games.each do |game|
       if publisher['qualifiers'].nil?
         release_publishers << publisher['property_id']
       elsif publisher['qualifiers']['platforms'].include?(game_platform['property_id'])
-        puts publisher['qualifiers']['platforms']
         release_publishers << publisher['property_id']
+      elsif publisher['qualifiers'].keys.length > 1
+        puts "Publishers has unhandled qualifier case?"
+        puts publisher['qualifiers']
       end
     end
 
