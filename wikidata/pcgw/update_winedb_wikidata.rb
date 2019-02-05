@@ -49,6 +49,8 @@ puts games
 
 games_with_no_winedb = games.filter { |game| game['wikidata_item_has_winedb_id'] == false }
 
+# TODO: This may not actually be accurate, does the line above actually handle wikidata_item_has_winedb_id being nil properly?
+#       Can probably just reparse the JSON file we've saved to get this data more accurately.
 puts "Missing WineHQ IDs vs total: #{games_with_no_winedb.length} / #{games.length}"
 
 File.write('games_with_winedb_ids.json', games.to_json)
