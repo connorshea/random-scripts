@@ -141,8 +141,8 @@ rows.each_with_index do |row, index|
     end
   end
   
-  # Sleep for 10 seconds between edits to make sure we don't hit the Wikidata
+  # Sleep for 6 seconds between edits to make sure we don't hit the Wikidata
   # rate limit.
   puts
-  sleep(10)
+  sleep(6)
 end
