@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
+
+gem 'mediawiki_api-wikidata', github: 'takahashim/WikidataApiGem', ref: '108e1195946e8707cd6613325f7164f4f3a7d990'
+gem 'mediawiki_api'
+gem 'sparql-client'
+gem 'dotenv'

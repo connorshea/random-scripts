@@ -11,7 +11,7 @@
 /tmp/
 
 # Used by dotenv library to load environment variables.
-# .env
+.env
 
 ## Specific to RubyMotion (use of CocoaPods):
 #
@@ -54,3 +54,5 @@ wikidata/pcgw/pcgw_steam_ids.csv
 wikidata/games/pretty_games.json
 wikidata/pcgw/pcgw_games_list.json
 wikidata/pcgw/catalog.txt
+wikidata/pcgw/pcgw_catalog.txt
+*.json
