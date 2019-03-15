@@ -1,6 +1,6 @@
 # frozen_string_literal: true
-# Credit to Vetle at PCGamingWiki for sharing with me a Steam API parsing
-# script he wrote, that served as a basis for this script.
+# Credit to Vetle at PCGamingWiki for sharing a Steam API parsing
+# script with me. That served as a basis for this script.
 
 require 'dotenv/load'
 require 'sparql/client'
