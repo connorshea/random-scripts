@@ -1,9 +1,12 @@
 # frozen_string_literal: true
+# Credit to Vetle at PCGamingWiki for sharing with me a Steam API parsing
+# script he wrote, that served as a basis for this script.
 
 require 'dotenv/load'
 require 'sparql/client'
 require 'json'
 require 'open-uri'
+require 'net/http'
 require 'mediawiki_api'
 require 'mediawiki_api/wikidata/wikidata_client'
 
@@ -21,6 +24,7 @@ def query
   sparql
 end
 
+# Get claims for the given Wikidata item about the given property.
 def get_claims(item:, property:)
   JSON.parse(URI.open("https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=#{item}&property=#{property}&format=json").read)
 end
@@ -35,42 +39,99 @@ sparql_client = SPARQL::Client.new(endpoint, method: :get)
 sparql = query
 rows = sparql_client.query(sparql)
 
+# Platform Wikidata IDs. Steam only supports Windows, macOS, and Linux.
 platform_wikidata_ids = {
   windows: 1406,
-  macos: 14116,
+  mac: 14116,
   linux: 388
+}
+
+# Platform names for printing.
+humanized_platforms = {
+  windows: 'Windows',
+  mac: 'macOS',
+  linux: 'Linux'
 }
 
 puts "Got #{rows.length} items."
 
+# Iterate through every item returned by the SPARQL query.
 rows.each_with_index do |row, index|
-  break if index.positive?
-
-  puts row.to_h.inspect
+  # Get the English label for the item.
+  name = row.to_h[:itemLabel].to_s
+  # Get the item ID.
   item = row.to_h[:item].to_s.gsub('http://www.wikidata.org/entity/', '')
+  # Get all claims for the Wikidata item.
   json = get_claims(item: item, property: 'P1733')
 
+  # Filter to the claims specifically about the Steam App ID.
   claims = json.dig('claims', 'P1733').first
   claim_id = claims.dig('id')
   
+  current_platforms = []
+
   # Get the Steam AppID
   steam_appid = claims.dig("mainsnak", "datavalue", "value")
-  steam_url = "https://store.steampowered.com/app/#{steamappid}"
+  steam_url = "https://store.steampowered.com/app/#{steam_appid}"
 
-  # TODO: Check what platforms its on by scraping Steam.
+  # Spoof the user agent of Steam Big Picture to get the API endpoint to respond consistently.
+  # Disables SSL verify mode because that causes problems for some reason.
+  uri = URI("https://store.steampowered.com/api/appdetails/?appids=#{steam_appid}")
+  request = Net::HTTP::Get.new(uri)
+  request['User-Agent'] = 'Valve/Steam HTTP Client 1.0 (tenfoot)'
+  response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) {|http|
+    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    http.request(request)
+  }
 
+  # Parse the JSON response to get the game's platforms.
+  response = JSON.parse(response.body)
+  platforms = response.dig(response.keys.first, 'data', 'platforms')
+  # If platforms is nil, that means there was no platforms data in the response
+  # from Steam, which suggests either the Steam App ID was wrong or Steam has
+  # started rate limiting us.
+  if !platforms.nil?
+    # Filter the platforms list down to platforms with a true value.
+    platforms.select! { |key, value| value == true }
+    # Map to symbolized representations of each platform (e.g. :mac instead of 'mac')
+    platforms = platforms.keys.map { |key| key.to_sym }
+
+    # Add the humanized representation of each platform to the current_platforms array.
+    platforms.each do |platform|
+      current_platforms << humanized_platforms[platform]
+    end
+    # Print the Steam URL and available platforms.
+    puts steam_url
+    puts "Available on #{current_platforms.join(', ')}."
+  else
+    # If no platforms are found, print a failure message and the Steam URL.
+    puts "Steam request failed for #{name}."
+    puts steam_url
+    puts
+    next
+  end
 
   # Add these qualifiers depending on the platforms listed on the Steam page.
   platform_values = {
     windows: { "entity-type": "item", "numeric-id": platform_wikidata_ids[:windows], "id": "Q#{platform_wikidata_ids[:windows]}" },
-    macos: { "entity-type": "item", "numeric-id": platform_wikidata_ids[:macos], "id": "Q#{platform_wikidata_ids[:macos]}" },
+    mac: { "entity-type": "item", "numeric-id": platform_wikidata_ids[:mac], "id": "Q#{platform_wikidata_ids[:mac]}" },
     linux: { "entity-type": "item", "numeric-id": platform_wikidata_ids[:linux], "id": "Q#{platform_wikidata_ids[:linux]}" }
   }
 
-  # placeholder, replace these depending on what the Steam page says.
-  platforms = [:windows, :macos, :linux]
+  puts "Adding #{current_platforms.join(', ')} to #{name}."
+  puts "#{row.to_h[:item].to_s}"
 
-  # platforms.each do |platform|
-  #   wikidata_client.set_qualifier(claim_id.to_s, 'value', 'P400', platform_values[platform.to_sym].to_json)
-  # end
+  # Try to set the qualifier for each platform, report an error if it fails for any reason.
+  platforms.each do |platform|
+    begin
+      wikidata_client.set_qualifier(claim_id.to_s, 'value', 'P400', platform_values[platform].to_json)
+    rescue => error
+      puts "ERROR: #{error}"
+    end
+  end
+  
+  # Sleep for 10 seconds between edits to make sure we don't hit the Wikidata
+  # rate limit.
+  puts
+  sleep(10)
 end
