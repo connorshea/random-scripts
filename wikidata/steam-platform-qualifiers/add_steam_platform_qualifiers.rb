@@ -1,6 +1,17 @@
 # frozen_string_literal: true
 # Credit to Vetle at PCGamingWiki for sharing a Steam API parsing
 # script with me. That served as a basis for this script.
+#
+# This script adds platform qualifiers to Wikidata items with Steam App IDs
+# that don't have qualifiers. For example, see the Steam Application ID
+# for Half-Life 2:
+# https://www.wikidata.org/wiki/Q193581#P1733
+#
+# This script:
+# - Runs a SPARQL query to get a list of every item on Wikidata with a Steam App ID that's lacking platform qualifiers.
+# - Iterates through that list.
+# - Gets the platforms for the game from the Steam API.
+# - Applies the platform qualifiers depending on the platforms Steam returns.
 
 require 'dotenv/load'
 require 'sparql/client'
