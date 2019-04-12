@@ -28,7 +28,6 @@ def query
       FILTER NOT EXISTS { ?item wdt:P400 ?platform . } # with no platforms
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
     }
-    LIMIT 50
   SPARQL
 
   return sparql
@@ -64,6 +63,6 @@ rows.each do |row|
     }
 
     claim = wikidata_client.create_claim(wikidata_id, "value", "P400", wikidata_platform_identifier.to_json)
-    # puts JSON.pretty_generate(claim.data.dig('claim', 'id'))
+    # claim_id = claim.data.dig('claim', 'id')
   end
 end
