@@ -55,6 +55,10 @@ rows.each do |row|
   wikidata_id = key_hash[:item].to_s.sub('http://www.wikidata.org/entity/', '')
 
   platforms.each do |platform|
+    if platform == 'Mac OS'
+      puts 'Mac OS, skipping.'
+      next
+    end
     puts "Adding #{platform} to #{key_hash[:itemLabel]}"
     wikidata_platform_identifier = {
       "entity-type": "item",
