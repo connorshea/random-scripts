@@ -48,7 +48,7 @@ rows.each do |row|
   
   platforms = PcgwHelper.get_attributes_for_game(game, %i[platforms]).values[0]
   if platforms.empty?
-    puts "No platforms found."
+    puts "No platforms found for #{key_hash[:itemLabel].to_s}."
     next
   end
 
