@@ -1,0 +1,50 @@
+GIT
+  remote: https://github.com/wmde/WikidataApiGem
+  revision: 3edcb640817486f6f5cc56f8f583a1d7f6096f74
+  specs:
+    mediawiki_api-wikidata (0.2.1)
+      mediawiki_api (~> 0.6.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    concurrent-ruby (1.1.5)
+    connection_pool (2.2.2)
+    domain_name (0.5.20180417)
+      unf (>= 0.0.5, < 1.0.0)
+    faraday (0.15.4)
+      multipart-post (>= 1.2, < 3)
+    faraday-cookie_jar (0.0.6)
+      faraday (>= 0.7.4)
+      http-cookie (~> 1.0.0)
+    hamster (3.0.0)
+      concurrent-ruby (~> 1.0)
+    http-cookie (1.0.3)
+      domain_name (~> 0.5)
+    link_header (0.0.8)
+    mediawiki_api (0.6.0)
+      faraday (~> 0.9, >= 0.9.0)
+      faraday-cookie_jar (~> 0.0, >= 0.0.6)
+    multipart-post (2.0.0)
+    net-http-persistent (3.0.0)
+      connection_pool (~> 2.2)
+    rdf (3.0.11)
+      hamster (~> 3.0)
+      link_header (~> 0.0, >= 0.0.8)
+    sparql-client (3.0.1)
+      net-http-persistent (>= 2.9, < 4)
+      rdf (~> 3.0)
+    unf (0.1.4)
+      unf_ext
+    unf_ext (0.0.7.5)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  mediawiki_api
+  mediawiki_api-wikidata!
+  sparql-client
+
+BUNDLED WITH
+   2.0.1
