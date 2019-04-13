@@ -173,239 +173,239 @@ module WikidataHelper
   end
 end
 
-include WikidataHelper
+# include WikidataHelper
 
-def prettify(input)
-  return JSON.pretty_generate(input)
-end
+# def prettify(input)
+#   return JSON.pretty_generate(input)
+# end
 
-def claims_helper(game, property)
-  return WikidataHelper.get_claims(entity: game, property: PROPERTIES[property])
-end
+# def claims_helper(game, property)
+#   return WikidataHelper.get_claims(entity: game, property: PROPERTIES[property])
+# end
 
-# Takes an array of ids and returns an array of hashes, each with an id and English name.
-def get_english_names(ids)
-  names = WikidataHelper.get_names(ids: ids, languages: 'en')
-  name_hashes = []
+# # Takes an array of ids and returns an array of hashes, each with an id and English name.
+# def get_english_names(ids)
+#   names = WikidataHelper.get_names(ids: ids, languages: 'en')
+#   name_hashes = []
 
-  names.each do |prop_id, name|
-    name_hashes << { id: prop_id, name: name['labels']['en']['value'] }
-  end
+#   names.each do |prop_id, name|
+#     name_hashes << { id: prop_id, name: name['labels']['en']['value'] }
+#   end
 
-  return name_hashes
-end
+#   return name_hashes
+# end
 
-# Convenience method for returning just one name.
-def get_english_name(id)
-  names = get_english_names(id)
-  return names.first
-end
+# # Convenience method for returning just one name.
+# def get_english_name(id)
+#   names = get_english_names(id)
+#   return names.first
+# end
 
-def get_entity_properties(id)
-  claims = WikidataHelper.get_claims(entity: id)
-  return claims.keys
-end
+# def get_entity_properties(id)
+#   claims = WikidataHelper.get_claims(entity: id)
+#   return claims.keys
+# end
 
-# Return an array of an entity's properties and the English names for each.
-def pretty_get_entity_properties(id)
-  keys = get_entity_properties(id)
-  keys.sort! { |a, b| a[1..-1].to_i <=> b[1..-1].to_i }
-  keys_hash = {}
+# # Return an array of an entity's properties and the English names for each.
+# def pretty_get_entity_properties(id)
+#   keys = get_entity_properties(id)
+#   keys.sort! { |a, b| a[1..-1].to_i <=> b[1..-1].to_i }
+#   keys_hash = {}
 
-  names_hashes = get_english_names(keys)
+#   names_hashes = get_english_names(keys)
 
-  return names_hashes
-end
+#   return names_hashes
+# end
 
-#
-# Prints a list of an entity's properties.
-#
-# @param [String] id The Wikidata identifier, e.g. 'Q123' or 'P123'.
-#
-# @return [void]
-#
-def print_entity_properties(id)
-  properties = pretty_get_entity_properties(id)
-  properties.each do |property|
-    puts "#{property[:id]}: #{property[:name]}"
-  end
-end
+# #
+# # Prints a list of an entity's properties.
+# #
+# # @param [String] id The Wikidata identifier, e.g. 'Q123' or 'P123'.
+# #
+# # @return [void]
+# #
+# def print_entity_properties(id)
+#   properties = pretty_get_entity_properties(id)
+#   properties.each do |property|
+#     puts "#{property[:id]}: #{property[:name]}"
+#   end
+# end
 
-def get_properties(id, property)
-  claims = claims_helper(id, property)
-  properties = claims[PROPERTIES[property]]
-  return nil if claims[PROPERTIES[property]].nil?
-  datatype = properties.first['mainsnak']['datatype']
+# def get_properties(id, property)
+#   claims = claims_helper(id, property)
+#   properties = claims[PROPERTIES[property]]
+#   return nil if claims[PROPERTIES[property]].nil?
+#   datatype = properties.first['mainsnak']['datatype']
 
-  if datatype == 'wikidata-item'
-    return_properties = parse_item_properties(properties)
-  elsif datatype == 'time'
-    return_properties = parse_time_properties(properties)
-  elsif datatype == 'external-id'
-    return_properties = parse_external_id_properties(properties)
-  else
-    return_properties = parse_item_properties(properties)
-  end
+#   if datatype == 'wikidata-item'
+#     return_properties = parse_item_properties(properties)
+#   elsif datatype == 'time'
+#     return_properties = parse_time_properties(properties)
+#   elsif datatype == 'external-id'
+#     return_properties = parse_external_id_properties(properties)
+#   else
+#     return_properties = parse_item_properties(properties)
+#   end
   
-  return return_properties
-end
+#   return return_properties
+# end
 
-def parse_item_properties(properties)
-  property_ids = []
+# def parse_item_properties(properties)
+#   property_ids = []
 
-  properties.each do |property|
-    property_id = property['mainsnak']['datavalue']['value']['id']
-    unless property['qualifiers'].nil?
-      property_ids << { property_id: property_id, qualifiers: parse_item_qualifiers(property['qualifiers']) }
-      next
-    end
-    property_ids << { property_id: property_id }
-  end
+#   properties.each do |property|
+#     property_id = property['mainsnak']['datavalue']['value']['id']
+#     unless property['qualifiers'].nil?
+#       property_ids << { property_id: property_id, qualifiers: parse_item_qualifiers(property['qualifiers']) }
+#       next
+#     end
+#     property_ids << { property_id: property_id }
+#   end
 
-  return property_ids
-end
+#   return property_ids
+# end
 
-def parse_time_properties(publication_dates)
-  publication_date_times = []
+# def parse_time_properties(publication_dates)
+#   publication_date_times = []
 
-  publication_dates.each do |publication_date|
-    publication_date_time = publication_date['mainsnak']['datavalue']['value']['time']
-    unless publication_date['qualifiers'].nil?
-      publication_date_times << { time: Date.rfc3339(publication_date_time[1..-1]), qualifiers: parse_time_qualifiers(publication_date['qualifiers']) }
-      next
-    end
-    # Wikidata's API outputs dates in the format "+2016-05-13T00:00:00Z"
-    # This removes the first character so that Date.rfc3339 can parse it.
-    publication_date_times << { time: Date.rfc3339(publication_date_time[1..-1]) }
-  end
+#   publication_dates.each do |publication_date|
+#     publication_date_time = publication_date['mainsnak']['datavalue']['value']['time']
+#     unless publication_date['qualifiers'].nil?
+#       publication_date_times << { time: Date.rfc3339(publication_date_time[1..-1]), qualifiers: parse_time_qualifiers(publication_date['qualifiers']) }
+#       next
+#     end
+#     # Wikidata's API outputs dates in the format "+2016-05-13T00:00:00Z"
+#     # This removes the first character so that Date.rfc3339 can parse it.
+#     publication_date_times << { time: Date.rfc3339(publication_date_time[1..-1]) }
+#   end
   
-  return publication_date_times
-end
+#   return publication_date_times
+# end
 
-def parse_external_id_properties(properties)
-  external_id = properties.first['mainsnak']['datavalue']['value']
+# def parse_external_id_properties(properties)
+#   external_id = properties.first['mainsnak']['datavalue']['value']
 
-  return external_id
-end
+#   return external_id
+# end
 
-def parse_item_qualifiers(qualifiers)
-  return_value = {}
+# def parse_item_qualifiers(qualifiers)
+#   return_value = {}
 
-  qualifiers.each do |property, qualifiers_for_property|
-    platforms = [] if property == PROPERTIES[:platforms]
-    qualifiers_for_property.each do |qualifier|
-      if property == PROPERTIES[:platforms]
-        platforms << qualifier['datavalue']['value']['id']
-      else
-        puts "MISSED QUALIFIER: #{property}" if QUALIFIER_TYPES[property.to_sym].nil?
-      end
-    end
+#   qualifiers.each do |property, qualifiers_for_property|
+#     platforms = [] if property == PROPERTIES[:platforms]
+#     qualifiers_for_property.each do |qualifier|
+#       if property == PROPERTIES[:platforms]
+#         platforms << qualifier['datavalue']['value']['id']
+#       else
+#         puts "MISSED QUALIFIER: #{property}" if QUALIFIER_TYPES[property.to_sym].nil?
+#       end
+#     end
 
-    return_value['platforms'] = platforms if property == PROPERTIES[:platforms]
-  end
+#     return_value['platforms'] = platforms if property == PROPERTIES[:platforms]
+#   end
 
-  return return_value
-end
+#   return return_value
+# end
 
-def parse_time_qualifiers(qualifiers)
-  return_value = {}
+# def parse_time_qualifiers(qualifiers)
+#   return_value = {}
 
-  qualifiers.each do |property, qualifiers_for_property|
-    # We don't care about place of publication for now.
-    next if QUALIFIER_TYPES[property.to_sym] == :place_of_publication
-    platforms = [] if property == PROPERTIES[:platforms]
-    qualifiers_for_property.each do |qualifier|
-      if property == PROPERTIES[:platforms]
-        platforms << qualifier['datavalue']['value']['id']
-      else
-        puts "MISSED QUALIFIER: #{property}" if QUALIFIER_TYPES[property.to_sym].nil?
-      end
-    end
+#   qualifiers.each do |property, qualifiers_for_property|
+#     # We don't care about place of publication for now.
+#     next if QUALIFIER_TYPES[property.to_sym] == :place_of_publication
+#     platforms = [] if property == PROPERTIES[:platforms]
+#     qualifiers_for_property.each do |qualifier|
+#       if property == PROPERTIES[:platforms]
+#         platforms << qualifier['datavalue']['value']['id']
+#       else
+#         puts "MISSED QUALIFIER: #{property}" if QUALIFIER_TYPES[property.to_sym].nil?
+#       end
+#     end
 
-    return_value['platforms'] = platforms if property == PROPERTIES[:platforms]
-  end
+#     return_value['platforms'] = platforms if property == PROPERTIES[:platforms]
+#   end
 
-  return return_value
-end
+#   return return_value
+# end
 
-def get_genres(id)
-  return get_properties(id, :genres)
-end
+# def get_genres(id)
+#   return get_properties(id, :genres)
+# end
 
-def get_developers(id)
-  return get_properties(id, :developers)
-end
+# def get_developers(id)
+#   return get_properties(id, :developers)
+# end
 
-def get_publishers(id)
-  return get_properties(id, :publishers)
-end
+# def get_publishers(id)
+#   return get_properties(id, :publishers)
+# end
 
-def get_platforms(id)
-  return get_properties(id, :platforms)
-end
+# def get_platforms(id)
+#   return get_properties(id, :platforms)
+# end
 
-def get_publication_dates(id)
-  return get_properties(id, :publication_dates)
-end
+# def get_publication_dates(id)
+#   return get_properties(id, :publication_dates)
+# end
 
-def get_pcgamingwiki_id(id)
-  return get_properties(id, :pcgamingwiki_id)
-end
+# def get_pcgamingwiki_id(id)
+#   return get_properties(id, :pcgamingwiki_id)
+# end
 
-# WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
-# WikidataHelper.get_descriptions(ids: 'Q42')
-# WikidataHelper.get_datatype(ids: 'P42')
-# WikidataHelper.get_aliases(ids: 'Q42')
-# WikidataHelper.get_labels(ids: 'Q42')
-# WikidataHelper.get_sitelinks(ids: 'Q42')
+# # WikidataHelper.get_claims(entity: 'Q4200', property: 'P31')
+# # WikidataHelper.get_descriptions(ids: 'Q42')
+# # WikidataHelper.get_datatype(ids: 'P42')
+# # WikidataHelper.get_aliases(ids: 'Q42')
+# # WikidataHelper.get_labels(ids: 'Q42')
+# # WikidataHelper.get_sitelinks(ids: 'Q42')
 
-PROPERTIES = {
-  publishers: 'P123',
-  platforms: 'P400',
-  developers: 'P178',
-  genres: 'P136',
-  publication_dates: 'P577',
-  pcgamingwiki_id: 'P6337'
-}
+# PROPERTIES = {
+#   publishers: 'P123',
+#   platforms: 'P400',
+#   developers: 'P178',
+#   genres: 'P136',
+#   publication_dates: 'P577',
+#   pcgamingwiki_id: 'P6337'
+# }
 
-QUALIFIER_TYPES = {
-  P123: :publisher,
-  P291: :place_of_publication,
-  P361: :part_of,
-  P400: :platform
-}
+# QUALIFIER_TYPES = {
+#   P123: :publisher,
+#   P291: :place_of_publication,
+#   P361: :part_of,
+#   P400: :platform
+# }
 
-games = {
-  'Half-Life': 'Q279744',
-  'Call of Duty 4: Modern Warfare': 'Q76255',
-  'Half-Life 2': 'Q193581',
-  'Half-Life 2: Episode One': 'Q18951',
-  'Half-Life 2: Episode Two': 'Q553308',
-  'Portal 2': 'Q279446',
-  "Kirby's Epic Yarn": 'Q1361363',
-  'Doom': 'Q513867'
-}
+# games = {
+#   'Half-Life': 'Q279744',
+#   'Call of Duty 4: Modern Warfare': 'Q76255',
+#   'Half-Life 2': 'Q193581',
+#   'Half-Life 2: Episode One': 'Q18951',
+#   'Half-Life 2: Episode Two': 'Q553308',
+#   'Portal 2': 'Q279446',
+#   "Kirby's Epic Yarn": 'Q1361363',
+#   'Doom': 'Q513867'
+# }
 
-games_data = []
+# games_data = []
 
-games.each do |name, id|
-  game = {}
+# games.each do |name, id|
+#   game = {}
 
-  game.merge!(get_english_name(id))
-  game['pcgamingwiki_id'] = get_pcgamingwiki_id(id)
-  game['genres'] = get_genres(id)
-  game['developers'] = get_developers(id)
-  game['publishers'] = get_publishers(id)
-  game['platforms'] = get_platforms(id)
-  game['release_dates'] = get_publication_dates(id)
+#   game.merge!(get_english_name(id))
+#   game['pcgamingwiki_id'] = get_pcgamingwiki_id(id)
+#   game['genres'] = get_genres(id)
+#   game['developers'] = get_developers(id)
+#   game['publishers'] = get_publishers(id)
+#   game['platforms'] = get_platforms(id)
+#   game['release_dates'] = get_publication_dates(id)
 
-  games_data << game
+#   games_data << game
 
-  # puts prettify(game)
-  # print_entity_properties(id)
-end
+#   # puts prettify(game)
+#   # print_entity_properties(id)
+# end
 
-pretty_games_data = prettify(games_data)
+# pretty_games_data = prettify(games_data)
 
-# puts pretty_games_data
-File.write('wikidata_games_data.json', pretty_games_data)
+# # puts pretty_games_data
+# File.write('wikidata_games_data.json', pretty_games_data)
