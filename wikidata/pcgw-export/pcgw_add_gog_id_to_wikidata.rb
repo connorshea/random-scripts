@@ -86,6 +86,7 @@ rows.each do |row|
   gog_app_id = gog_app_ids[0]
 
   gog_hash = gog_ids.detect { |gog_id| gog_id[:id].to_i == gog_app_id }
+  next if gog_hash.nil?
 
   wikidata_id = key_hash[:item].to_s.sub('http://www.wikidata.org/entity/', '')
   
