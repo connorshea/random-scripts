@@ -10,6 +10,9 @@ module PcgwHelper
     attr_accessor :inverted_pcgw_attrs
   end
 
+  # Semantic MediaWiki property names, can be found on Special:Browse.
+  # e.g. https://pcgamingwiki.com/wiki/Special:Browse/:Half-2DLife-5F2
+  # Note that PCGW intends to move to Cargo, so this may not work after 2019.
   self.pcgw_attrs = {
     developer: 'Developed by',
     publisher: 'Published by',
@@ -20,7 +23,8 @@ module PcgwHelper
     platforms: 'Available on',
     series: 'Part of series',
     steam_app_id: 'Steam AppID',
-    wine_app_id: 'WineHQ AppID'
+    wine_app_id: 'WineHQ AppID',
+    gog_app_id: 'GOGcom page'
   }
 
   #

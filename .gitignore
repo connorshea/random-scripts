@@ -56,3 +56,4 @@ wikidata/pcgw/pcgw_games_list.json
 wikidata/pcgw/catalog.txt
 wikidata/pcgw/pcgw_catalog.txt
 *.json
+wikidata/pcgw-export/gogdb_backup.csv
