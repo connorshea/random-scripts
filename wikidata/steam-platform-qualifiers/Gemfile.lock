@@ -1,7 +1,6 @@
 GIT
-  remote: https://github.com/takahashim/WikidataApiGem
-  revision: 108e1195946e8707cd6613325f7164f4f3a7d990
-  ref: 108e1195946e8707cd6613325f7164f4f3a7d990
+  remote: https://github.com/wmde/WikidataApiGem
+  revision: 3edcb640817486f6f5cc56f8f583a1d7f6096f74
   specs:
     mediawiki_api-wikidata (0.2.1)
       mediawiki_api (~> 0.6.0)
@@ -13,7 +12,7 @@ GEM
     connection_pool (2.2.2)
     domain_name (0.5.20180417)
       unf (>= 0.0.5, < 1.0.0)
-    dotenv (2.6.0)
+    dotenv (2.7.2)
     faraday (0.15.4)
       multipart-post (>= 1.2, < 3)
     faraday-cookie_jar (0.0.6)
@@ -30,7 +29,7 @@ GEM
     multipart-post (2.0.0)
     net-http-persistent (3.0.0)
       connection_pool (~> 2.2)
-    rdf (3.0.10)
+    rdf (3.0.11)
       hamster (~> 3.0)
       link_header (~> 0.0, >= 0.0.8)
     sparql-client (3.0.1)
