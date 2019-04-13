@@ -27,6 +27,22 @@ def query
   return sparql
 end
 
+# Check if the GOG URL is correct, if it redirects then it's wrong.
+def url_exists?(url_string)
+  url = URI.parse(url_string)
+  req = Net::HTTP.new(url.host, url.port)
+  req.use_ssl = true
+  path = url.path unless url.path.empty?
+  res = req.request_head(path || '/')
+  if res.kind_of?(Net::HTTPRedirection)
+    return false
+  else
+    ! %W(4 5).include?(res.code[0]) # Not from 4xx or 5xx families
+  end
+rescue Errno::ENOENT
+  false #false if can't find the server
+end
+
 client = SPARQL::Client.new(endpoint, :method => :get)
 
 rows = client.query(query)
@@ -83,5 +99,11 @@ rows.each do |row|
 
   puts "Adding #{gog_app_value} to #{key_hash[:itemLabel]}"
 
-  claim = wikidata_client.create_claim(wikidata_id, "value", "P600", "'#{gog_app_value}'")
+  gog_url = "https://www.gog.com/#{gog_app_value}"
+  puts gog_url
+  if url_exists?(gog_url)
+    claim = wikidata_client.create_claim(wikidata_id, "value", "P2725", "'#{gog_app_value}'")
+  else
+    puts "URL redirects, not adding."
+  end
 end
