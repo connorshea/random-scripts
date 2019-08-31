@@ -43,8 +43,11 @@ end
 wikidata_client = MediawikiApi::Wikidata::WikidataClient.new 'https://www.wikidata.org/w/api.php'
 wikidata_client.log_in(ENV["WIKIDATA_USERNAME"].to_s, ENV["WIKIDATA_PASSWORD"].to_s)
 
-endpoint = 'https://query.wikidata.org/sparql'
-sparql_client = SPARQL::Client.new(endpoint, method: :get)
+sparql_client = SPARQL::Client.new(
+  "https://query.wikidata.org/sparql",
+  method: :get,
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+)
 
 # Get the response from the Wikidata query.
 sparql = query
@@ -85,13 +88,10 @@ rows.each_with_index do |row, index|
   steam_appid = claims.dig("mainsnak", "datavalue", "value")
   steam_url = "https://store.steampowered.com/app/#{steam_appid}"
 
-  # Spoof the user agent of Steam Big Picture to get the API endpoint to respond consistently.
-  # Disables SSL verify mode because that causes problems for some reason.
   uri = URI("https://store.steampowered.com/api/appdetails/?appids=#{steam_appid}")
   request = Net::HTTP::Get.new(uri)
   request['User-Agent'] = 'Valve/Steam HTTP Client 1.0 (tenfoot)'
   response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) {|http|
-    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     http.request(request)
   }
 
