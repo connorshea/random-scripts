@@ -1,16 +1,21 @@
 # Take the PCGW Steam IDs CSV and associate PCGamingWiki IDs with Wikidata
 # items, then update the Wikidata item.
-# gem install sparql
-# gem install mediawiki_api-wikidata
 #http://www.rubydoc.info/github/ruby-rdf/sparql/frames
 
-require 'sparql/client'
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'mediawiki_api', require: true
+  gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
+  gem 'sparql-client'
+end
+
 require 'json'
 require 'csv'
 require 'open-uri'
-require 'mediawiki_api'
-require "mediawiki_api/wikidata/wikidata_client"
 require "net/http"
+require 'sparql/client'
 
 # SPARQL Query to find the, pass the Steam App ID and it'll return a query
 # that finds any Wikidata items with that App ID.
@@ -30,7 +35,11 @@ end
 def find_wikidata_item_by_steam_app_id(app_id)
   endpoint = "https://query.wikidata.org/sparql"
   
-  client = SPARQL::Client.new(endpoint, :method => :get)
+  client = SPARQL::Client.new(
+    "https://query.wikidata.org/sparql",
+    method: :get,
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+  )
   sparql = query(app_id)
   begin
     rows = client.query(sparql)
@@ -101,7 +110,7 @@ wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
 # For every PCGW item created from the CSV, find the respective wikidata item
 # and then compare the id of the PCGW item and the Wikidata item found via the
 # Steam App ID.
-pcgw_steam_ids.each do |game|
+pcgw_steam_ids.each_with_index do |game, index|
   # Get the wikidata item for the current game's Steam App ID
   wikidata_item = find_wikidata_item_by_steam_app_id(game[:steam_app_id])
 
@@ -110,6 +119,10 @@ pcgw_steam_ids.each do |game|
 
   next if game[:title].encoding.to_s != "ISO-8859-1"
 
+  puts
+  puts "#{index} / #{pcgw_steam_ids.length}"
+  puts "-------------"
+
   # Replace the underscores in the PCGW ID with spaces to get as close as possible
   # to the normal name.
   game[:pcgw_id] = game[:title].gsub(/ /, '_')
@@ -117,10 +130,15 @@ pcgw_steam_ids.each do |game|
   begin
     if game[:title].downcase == wikidata_item[:title].downcase
       wikidata_id = wikidata_item[:url].sub('http://www.wikidata.org/entity/', '')
-      puts "Wikidata Item ID: #{wikidata_id}, game[:pcgw_id]: #{game[:pcgw_id]}"
+      puts "Wikidata ID: #{wikidata_id}, PCGW ID: #{game[:pcgw_id]}"
 
       # Check if the property already exists, and skip if it already does.
-      claims = JSON.load(open("https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=#{wikidata_id}&property=P6337&format=json"))
+      begin
+        claims = JSON.load(open("https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=#{wikidata_id}&property=P6337&format=json"))
+      rescue SocketError => e
+        puts e
+        next
+      end
       if claims["claims"] != {}
         puts "This already has a PCGW ID"
         next
