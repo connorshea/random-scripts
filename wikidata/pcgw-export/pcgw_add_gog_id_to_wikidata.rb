@@ -1,7 +1,14 @@
 # frozen_string_literal: true
+require 'bundler/inline'
 
-require 'mediawiki_api'
-require 'mediawiki_api/wikidata/wikidata_client'
+gemfile do
+  source 'https://rubygems.org'
+  gem 'mediawiki_api', require: true
+  gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
+  gem 'sparql-client'
+  gem 'addressable'
+end
+
 require 'sparql/client'
 require 'json'
 require_relative './pcgw_helper.rb'
@@ -43,7 +50,11 @@ rescue Errno::ENOENT
   false #false if can't find the server
 end
 
-client = SPARQL::Client.new(endpoint, :method => :get)
+client = SPARQL::Client.new(
+  endpoint,
+  method: :get,
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+)
 
 rows = client.query(query)
 
