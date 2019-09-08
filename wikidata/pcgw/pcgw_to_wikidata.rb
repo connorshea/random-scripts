@@ -178,7 +178,7 @@ usable_pcgw_steam_ids.each_with_index do |game, index|
   next if game[:title].encoding.to_s != "ISO-8859-1"
 
   puts
-  puts "#{index} / #{usable_pcgw_steam_ids.length}"
+  puts "#{index + 1} / #{usable_pcgw_steam_ids.length}"
   puts "-------------"
 
   # Replace the underscores in the PCGW ID with spaces to get as close as possible
