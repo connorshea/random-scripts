@@ -1,9 +1,16 @@
 # frozen_string_literal: true
+require 'bundler/inline'
 
-require 'mediawiki_api'
-require 'mediawiki_api/wikidata/wikidata_client'
-require 'sparql/client'
+gemfile do
+  source 'https://rubygems.org'
+  gem 'mediawiki_api', require: true
+  gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
+  gem 'sparql-client'
+  gem 'addressable'
+end
+
 require 'json'
+require 'sparql/client'
 require_relative './pcgw_helper.rb'
 require_relative '../wikidata_helper.rb'
 
@@ -26,7 +33,11 @@ def query
   return sparql
 end
 
-client = SPARQL::Client.new(endpoint, :method => :get)
+client = SPARQL::Client.new(
+  endpoint,
+  method: :get,
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+)
 
 rows = client.query(query)
 
@@ -40,7 +51,9 @@ rows.each do |row|
   game = key_hash[:pcgw_id].to_s
   
   begin
-    wine_app_ids = PcgwHelper.get_attributes_for_game(game, %i[wine_app_id]).values[0]
+    wine_app_ids = PcgwHelper.get_attributes_for_game(game, %i[wine_app_id])
+    next if wine_app_ids.length == 0
+    wine_app_ids = wine_app_ids.values[0]
   rescue NoMethodError => e
     puts "#{e}"
     next
@@ -60,6 +73,11 @@ rows.each do |row|
 
   puts "Adding #{wine_app_ids[0]} to #{key_hash[:itemLabel]}"
 
-  claim = wikidata_client.create_claim(wikidata_id, "value", "P600", "'#{wine_app_ids[0]}'")
+  begin
+    puts wine_app_ids.inspect if ENV['DEBUG']
+    claim = wikidata_client.create_claim(wikidata_id, "value", "P600", "'#{wine_app_ids[0]}'")
+  rescue MediawikiApi::ApiError => e
+    puts e
+  end
   # claim_id = claim.data.dig('claim', 'id')
 end
