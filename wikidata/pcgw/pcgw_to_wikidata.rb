@@ -17,8 +17,9 @@ require 'open-uri'
 require "net/http"
 require 'sparql/client'
 
-# SPARQL Query to find the, pass the Steam App ID and it'll return a query
-# that finds any Wikidata items with that App ID.
+# SPARQL Query to find the Wikidata item for a given Steam App ID, pass the
+# Steam App ID and it'll return a query that finds any Wikidata items with
+# that App ID.
 def query(steam_app_id)
   sparql = <<-SPARQL
     SELECT ?item ?itemLabel WHERE {
@@ -27,6 +28,19 @@ def query(steam_app_id)
       SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
     }
     LIMIT 10
+  SPARQL
+
+  return sparql
+end
+
+def items_with_steam_and_no_pcgw_query
+  sparql = <<-SPARQL
+    SELECT ?item ?itemLabel ?appID WHERE {
+      ?item p:P1733 ?statement.
+        ?statement ps:P1733 ?appID.
+      FILTER NOT EXISTS { ?item wdt:P6337 ?pcgw_id . } # with no PCGW ID
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "en,en" }
+    }
   SPARQL
 
   return sparql
@@ -78,6 +92,35 @@ def verify_pcgw_url(pcgw_id)
   end
 end
 
+def get_items
+  endpoint = "https://query.wikidata.org/sparql"
+    
+  client = SPARQL::Client.new(
+    "https://query.wikidata.org/sparql",
+    method: :get,
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+  )
+  sparql = items_with_steam_and_no_pcgw_query()
+
+  begin
+    rows = client.query(sparql)
+  rescue SocketError => e
+    puts e
+    return nil
+  end
+
+  return_rows = []
+  rows.each do |row|
+    return_rows << {
+      url: row.to_h[:item].to_s,
+      title: row.to_h[:itemLabel].to_s,
+      steam_app_id: row.to_h[:appID].to_s
+    }
+  end
+
+  return return_rows
+end
+
 pcgw_steam_ids = []
 
 # Go through the CSV and create a hash for each PCGW item and its Steam App ID
@@ -107,14 +150,25 @@ CSV.foreach(
   }
 end
 
+# Get Wikidata items with a Steam App ID and no PCGW ID.
+puts 'getting items'
+wikidata_items_with_steam_ids = get_items()
+usable_steam_app_ids = wikidata_items_with_steam_ids.map { |x| x[:steam_app_id] }
+
+# Filter the items from the CSV down to just the ones with Steam IDs that exist
+# on Wikidata and don't have a PCGW ID.
+usable_pcgw_steam_ids = pcgw_steam_ids.select do |pcgw_steam_id_hash|
+  usable_steam_app_ids.include?(pcgw_steam_id_hash[:steam_app_id])
+end
+
 # Authenticate with Wikidata.
 wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
 wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
 
-# For every PCGW item created from the CSV, find the respective wikidata item
+# For every PCGW item remaining from the CSV, find the respective wikidata item
 # and then compare the id of the PCGW item and the Wikidata item found via the
 # Steam App ID.
-pcgw_steam_ids.each_with_index do |game, index|
+usable_pcgw_steam_ids.each_with_index do |game, index|
   # Get the wikidata item for the current game's Steam App ID
   wikidata_item = find_wikidata_item_by_steam_app_id(game[:steam_app_id])
 
@@ -124,7 +178,7 @@ pcgw_steam_ids.each_with_index do |game, index|
   next if game[:title].encoding.to_s != "ISO-8859-1"
 
   puts
-  puts "#{index} / #{pcgw_steam_ids.length}"
+  puts "#{index} / #{usable_pcgw_steam_ids.length}"
   puts "-------------"
 
   # Replace the underscores in the PCGW ID with spaces to get as close as possible
