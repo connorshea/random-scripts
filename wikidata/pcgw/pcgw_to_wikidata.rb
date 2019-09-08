@@ -23,6 +23,7 @@ def query(steam_app_id)
   sparql = <<-SPARQL
     SELECT ?item ?itemLabel WHERE {
       ?item wdt:P1733 "#{steam_app_id}".
+      FILTER NOT EXISTS { ?item wdt:P6337 ?pcgw_id . } # with no PCGW ID
       SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
     }
     LIMIT 10
@@ -50,7 +51,10 @@ def find_wikidata_item_by_steam_app_id(app_id)
   end
 
   # If there are 0 rows (no data returned) or more than one row, just skip it.
-  return nil if rows.size != 1
+  if rows.size != 1
+    print '.'
+    return nil
+  end
   return_row = {}
   rows.each do |row|
     return_row = { url: row.to_h[:item].to_s, title: row.to_h[:itemLabel].to_s }
