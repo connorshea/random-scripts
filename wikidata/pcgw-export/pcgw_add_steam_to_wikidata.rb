@@ -64,7 +64,7 @@ rows.each do |row|
   end
 
   wikidata_id = key_hash[:item].to_s.sub('http://www.wikidata.org/entity/', '')
-  
+
   existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: 'P1733')
   if existing_claims != {}
     puts "This item already has a Steam App ID."

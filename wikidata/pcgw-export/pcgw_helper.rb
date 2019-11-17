@@ -52,7 +52,7 @@ module PcgwHelper
     # &parameters=limit%3D500%7Coffset%3D100
     # unencoded: limit=500|offset=100
 
-    template = Addressable::Template.new("https://pcgamingwiki.com/w/api.php{?#{query_options_string}}")
+    template = Addressable::Template.new("https://www.pcgamingwiki.com/w/api.php{?#{query_options_string}}")
     template = template.expand(
       'action': 'askargs',
       'format': 'json',
