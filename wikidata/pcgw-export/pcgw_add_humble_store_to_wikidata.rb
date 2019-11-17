@@ -56,24 +56,43 @@ progress_bar = ProgressBar.create(
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
+all_pages = PcgwHelper.get_all_pages_with_property(:humble_store_id)
+pcgw_games = all_pages.map do |page|
+  humble_store_ids = page["printouts"][PcgwHelper.get_pcgw_attr_name(:humble_store_id)]
+  nil if humble_store_ids.empty?
+  {
+    name: page["name"],
+    pcgw_id: page["fullurl"].sub('https://www.pcgamingwiki.com/wiki/', ''),
+    humble_store_id: humble_store_ids[0]
+  }
+end
+
+pcgw_games.filter! { |game| !game.nil? }
+
+# Create an array of PCGW IDs that have Humble Store IDs.
+pcgw_ids = pcgw_games.map { |game| game[:pcgw_id] }
+
 rows.each do |row|
   progress_bar.increment
 
   key_hash = row.to_h
-  # puts "#{key_hash[:item].to_s}: #{key_hash[:itemLabel].to_s}"
   game = key_hash[:pcgw_id].to_s
+  next unless pcgw_ids.include?(game)
 
   begin
-    humble_store_ids = PcgwHelper.get_attributes_for_game(game, %i[humble_store_id])
-    next if humble_store_ids.length == 0
-    humble_store_ids = humble_store_ids.values[0]
+    game_with_pcgw_id = pcgw_games.find { |pcgw_game| pcgw_game[:pcgw_id] == game }
+    if game_with_pcgw_id.nil?
+      progress_bar.log "The PCGW ID  for #{key_hash[:itemLabel].to_s} doesn't match any PCGW IDs with associated Humble Store IDs."
+      next
+    end
+    humble_store_id = game_with_pcgw_id[:humble_store_id]
   rescue NoMethodError => e
     progress_bar.log "#{e}"
     next
   end
 
-  if humble_store_ids.empty?
-    progress_bar.log "No Humble Store IDs found for #{key_hash[:itemLabel].to_s}."
+  if humble_store_id.nil?
+    progress_bar.log "No Humble Store ID found for #{key_hash[:itemLabel].to_s}."
     next
   end
 
@@ -85,11 +104,11 @@ rows.each do |row|
     next
   end
 
-  progress_bar.log "Adding #{humble_store_ids[0]} to #{key_hash[:itemLabel]}"
+  progress_bar.log "Adding #{humble_store_id} to #{key_hash[:itemLabel]}"
 
   begin
-    progress_bar.log humble_store_ids.inspect if ENV['DEBUG']
-    claim = wikidata_client.create_claim(wikidata_id, "value", "P4477", "\"#{humble_store_ids[0]}\"")
+    progress_bar.log humble_store_id.inspect if ENV['DEBUG']
+    claim = wikidata_client.create_claim(wikidata_id, "value", "P4477", "\"#{humble_store_id}\"")
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
   end
