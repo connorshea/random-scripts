@@ -7,6 +7,7 @@ gemfile do
   gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
   gem 'sparql-client'
   gem 'addressable'
+  gem 'ruby-progressbar', '~> 1.10'
 end
 
 require 'sparql/client'
@@ -52,14 +53,20 @@ rows = client.query(query)
 wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
 wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
 
+progress_bar = ProgressBar.create(
+  total: rows.count,
+  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+)
+
 rows.each do |row|
+  progress_bar.increment
   key_hash = row.to_h
   # puts "#{key_hash[:item].to_s}: #{key_hash[:itemLabel].to_s}"
   game = key_hash[:pcgw_id].to_s
   
   platforms = PcgwHelper.get_attributes_for_game(game, %i[platforms]).values[0]
   if platforms.empty?
-    puts "No platforms found for #{key_hash[:itemLabel].to_s}."
+    progress_bar.log "No platforms found for #{key_hash[:itemLabel].to_s}."
     next
   end
 
@@ -67,10 +74,10 @@ rows.each do |row|
 
   platforms.each do |platform|
     if platform == 'Mac OS'
-      puts 'Mac OS, skipping.'
+      progress_bar.log 'Mac OS, skipping.'
       next
     end
-    puts "Adding #{platform} to #{key_hash[:itemLabel]}"
+    progress_bar.log "Adding #{platform} to #{key_hash[:itemLabel]}"
     wikidata_platform_identifier = {
       "entity-type": "item",
       "numeric-id": platform_wikidata_ids[platform.to_sym],
@@ -81,3 +88,5 @@ rows.each do |row|
     # claim_id = claim.data.dig('claim', 'id')
   end
 end
+
+progress_bar.finish unless progress_bar.finished?
