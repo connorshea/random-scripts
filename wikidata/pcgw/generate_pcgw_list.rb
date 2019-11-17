@@ -22,7 +22,7 @@ loop do
     page = page[1]
     game["title"] = page["fulltext"]
     game["fullurl"] = page["fullurl"]
-    game["pcgw_id"] = page["fullurl"].sub('//pcgamingwiki.com/wiki/', '')
+    game["pcgw_id"] = page["fullurl"].sub('//www.pcgamingwiki.com/wiki/', '')
     if page["printouts"]["Release date"] != []
       game["release_date"] = page["printouts"]["Release date"][0]["timestamp"]
     else 
