@@ -7,6 +7,7 @@ gemfile do
   gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
   gem 'sparql-client'
   gem 'addressable'
+  gem 'ruby-progressbar', '~> 1.10'
 end
 
 require 'json'
@@ -45,7 +46,14 @@ rows = client.query(query)
 wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
 wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
 
+progress_bar = ProgressBar.create(
+  total: rows.count,
+  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+)
+
 rows.each do |row|
+  progress_bar.increment
+
   key_hash = row.to_h
   # puts "#{key_hash[:item].to_s}: #{key_hash[:itemLabel].to_s}"
   game = key_hash[:pcgw_id].to_s
@@ -55,11 +63,11 @@ rows.each do |row|
     next if wine_app_ids.length == 0
     wine_app_ids = wine_app_ids.values[0]
   rescue NoMethodError => e
-    puts "#{e}"
+    progress_bar.log "#{e}"
     next
   end
   if wine_app_ids.empty?
-    puts "No WineHQ App IDs found for #{key_hash[:itemLabel].to_s}."
+    progress_bar.log "No WineHQ App IDs found for #{key_hash[:itemLabel].to_s}."
     next
   end
 
@@ -67,17 +75,19 @@ rows.each do |row|
   
   existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: 'P600')
   if existing_claims != {}
-    puts "This item already has a WineHQ App ID."
+    progress_bar.log "This item already has a WineHQ App ID."
     next
   end
 
-  puts "Adding #{wine_app_ids[0]} to #{key_hash[:itemLabel]}"
+  progress_bar.log "Adding #{wine_app_ids[0]} to #{key_hash[:itemLabel]}"
 
   begin
-    puts wine_app_ids.inspect if ENV['DEBUG']
+    progress_bar.log wine_app_ids.inspect if ENV['DEBUG']
     claim = wikidata_client.create_claim(wikidata_id, "value", "P600", "'#{wine_app_ids[0]}'")
   rescue MediawikiApi::ApiError => e
-    puts e
+    progress_bar.log e
   end
   # claim_id = claim.data.dig('claim', 'id')
 end
+
+progress_bar.finish unless progress_bar.finished?

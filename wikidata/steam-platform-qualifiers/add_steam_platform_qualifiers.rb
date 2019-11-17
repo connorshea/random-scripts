@@ -13,7 +13,17 @@
 # - Gets the platforms for the game from the Steam API.
 # - Applies the platform qualifiers depending on the platforms Steam returns.
 
-require 'dotenv/load'
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'mediawiki_api', require: true
+  gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
+  gem 'sparql-client'
+  gem 'addressable'
+  gem 'ruby-progressbar', '~> 1.10'
+end
+
 require 'sparql/client'
 require 'json'
 require 'open-uri'
@@ -67,10 +77,17 @@ humanized_platforms = {
   linux: 'Linux'
 }
 
-puts "Got #{rows.length} items."
+puts "Got #{rows.count} items."
+
+progress_bar = ProgressBar.create(
+  total: rows.count,
+  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+)
 
 # Iterate through every item returned by the SPARQL query.
 rows.each_with_index do |row, index|
+  progress_bar.increment
+
   # Get the English label for the item.
   name = row.to_h[:itemLabel].to_s
   # Get the item ID.
@@ -97,7 +114,7 @@ rows.each_with_index do |row, index|
 
   # Parse the JSON response to get the game's platforms.
   response = JSON.parse(response.body)
-  platforms = response.dig(response.keys.first, 'data', 'platforms')
+  platforms = response&.dig(response&.keys&.first, 'data', 'platforms')
   # If platforms is nil, that means there was no platforms data in the response
   # from Steam, which suggests either the Steam App ID was wrong or Steam has
   # started rate limiting us.
@@ -112,13 +129,13 @@ rows.each_with_index do |row, index|
       current_platforms << humanized_platforms[platform]
     end
     # Print the Steam URL and available platforms.
-    puts steam_url
-    puts "Available on #{current_platforms.join(', ')}."
+    progress_bar.log steam_url
+    progress_bar.log "Available on #{current_platforms.join(', ')}."
   else
     # If no platforms are found, print a failure message and the Steam URL.
-    puts "Steam request failed for #{name}."
-    puts steam_url
-    puts
+    progress_bar.log "Steam request failed for #{name}."
+    progress_bar.log steam_url
+    progress_bar.log ''
     next
   end
 
@@ -129,20 +146,22 @@ rows.each_with_index do |row, index|
     linux: { "entity-type": "item", "numeric-id": platform_wikidata_ids[:linux], "id": "Q#{platform_wikidata_ids[:linux]}" }
   }
 
-  puts "Adding #{current_platforms.join(', ')} to #{name}."
-  puts "#{row.to_h[:item].to_s}"
+  progress_bar.log "Adding #{current_platforms.join(', ')} to #{name}."
+  progress_bar.log "#{row.to_h[:item].to_s}"
 
   # Try to set the qualifier for each platform, report an error if it fails for any reason.
   platforms.each do |platform|
     begin
       wikidata_client.set_qualifier(claim_id.to_s, 'value', 'P400', platform_values[platform].to_json)
     rescue => error
-      puts "ERROR: #{error}"
+      progress_bar.log "ERROR: #{error}"
     end
   end
   
   # Sleep for 4 seconds between edits to make sure we don't hit the Wikidata
   # rate limit.
-  puts
-  sleep(4)
+  progress_bar.log ''
+  sleep(1)
 end
+
+progress_bar.finish unless progress_bar.finished?
