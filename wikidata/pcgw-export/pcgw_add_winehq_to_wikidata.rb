@@ -89,9 +89,8 @@ rows.each do |row|
 
   begin
     progress_bar.log wine_app_ids.inspect if ENV['DEBUG']
-    claim = wikidata_client.create_claim(wikidata_id, "value", "P600", "'#{wine_app_ids[0]}'")
+    claim = wikidata_client.create_claim(wikidata_id, "value", "P600", "\"#{wine_app_ids[0]}\"")
   rescue MediawikiApi::ApiError => e
-    puts wine_app_ids.inspect
     progress_bar.log e
   end
   # claim_id = claim.data.dig('claim', 'id')
