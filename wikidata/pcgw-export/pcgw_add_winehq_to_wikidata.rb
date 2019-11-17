@@ -18,6 +18,11 @@ require_relative '../wikidata_helper.rb'
 include PcgwHelper
 include WikidataHelper
 
+# Killing the script mid-run gets caught by the rescues later in the script
+# and fails to kill the script. This makes sure that the script can be killed
+# normally.
+trap("SIGINT") { exit! }
+
 endpoint = "https://query.wikidata.org/sparql"
 
 def query
@@ -66,6 +71,7 @@ rows.each do |row|
     progress_bar.log "#{e}"
     next
   end
+
   if wine_app_ids.empty?
     progress_bar.log "No WineHQ App IDs found for #{key_hash[:itemLabel].to_s}."
     next
@@ -85,6 +91,7 @@ rows.each do |row|
     progress_bar.log wine_app_ids.inspect if ENV['DEBUG']
     claim = wikidata_client.create_claim(wikidata_id, "value", "P600", "'#{wine_app_ids[0]}'")
   rescue MediawikiApi::ApiError => e
+    puts wine_app_ids.inspect
     progress_bar.log e
   end
   # claim_id = claim.data.dig('claim', 'id')
