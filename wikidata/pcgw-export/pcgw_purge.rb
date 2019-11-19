@@ -1,10 +1,71 @@
-require "mediawiki_api"
+# frozen_string_literal: true
+require 'bundler/inline'
 
-client = MediawikiApi::Client.new "https://pcgamingwiki.com/w/api.php"
+gemfile do
+  source 'https://rubygems.org'
+
+  gem 'mediawiki_api', require: true
+  gem 'addressable'
+end
+
+require 'addressable/template'
+require 'open-uri'
+require 'json'
+
+def get_all_humble_store_pages(limit: 25, offset: 0)
+  all_pages = []
+  pages = get_humble_store_pages(limit: limit, offset: offset)
+  pages.dig('query', 'results').each do |key, result|
+    result["name"] = key
+    all_pages << result
+  end
+  if pages.key?('query-continue-offset')
+    all_pages.concat(get_all_humble_store_pages(offset: pages['query-continue-offset'].to_i))
+  end
+  return all_pages
+end
+
+def get_humble_store_pages(limit: 25, offset: 0)
+  query_options = %i[
+    format
+    action
+    query
+  ]
+
+  query_options_string = query_options.join(',')
+
+  # limit 500, offset 100
+  # &parameters=limit%3D500%7Coffset%3D100
+  # unencoded: limit=500|offset=100
+
+  template = Addressable::Template.new("https://www.pcgamingwiki.com/w/api.php{?#{query_options_string}}")
+  template = template.expand(
+    'action': 'ask',
+    'format': 'json',
+    'query': "[[Available from::Humble Store]]|limit=#{limit}|offset=#{offset}"
+  )
+
+  puts template if ENV['DEBUG']
+  response = JSON.load(open(template))
+  puts JSON.pretty_generate(response) if ENV['DEBUG']
+  response
+end
+
+client = MediawikiApi::Client.new "https://www.pcgamingwiki.com/w/api.php"
+
 client.log_in ENV["PCGW_USERNAME"], ENV["PCGW_PASSWORD"]
 
-pcgw_ids = ["Hidden_Expedition:_Titanic", "Exodus_from_the_Earth", "Catacomb_Snatch", "Dungeon_Defenders_Eternity", "Mitos.is:_The_Game", "East_Tower_-_Kurenai", "East_Tower_-_Akio", "1..._2..._3..._KICK_IT!_(Drop_That_Beat_Like_an_Ugly_Baby)", "Hustle_Cat", "Dreadhalls", "RWBY:_Grimm_Eclipse", "Hounds:_The_Last_Hope", "Victory_and_Glory:_Napoleon", "World's_Dawn", "Zavix_Tower", "Sky_to_Fly:_Faster_Than_Wind", "Subterrain", "Lost_Lands:_Mahjong", "Frontiers", "Euclidean", "Selfie_Tennis", "Unseen_Diplomacy", "Minigolf_VR", "Light_Repair_Team_4", "Gon'_E-Choo!", "Modbox", "Bowslinger", "InMind_VR", "Gumball_Drift", "Water_Bears_VR", "A-10_VR", "XLR", "Minigame_Party_VR", "World_of_Diving", "Chunks", "Fishing_Planet", "Gunslinger_Trainer", "Polaris_Sector", "Master_Spy", "Zombie_Training_Simulator", "Airships:_Conquer_the_Skies", "LiEat", "Airport_Madness_3D", "Pro_Gamer_Manager", "The_Men_of_Yoshiwara:_Kikuya", "Savage_Lands", "Primal_Fears", "Hacker_Evolution", "Unholy_Heights", "Colony_Survival", "Sonya:_The_Great_Adventure", "Shadows:_Price_For_Our_Sins_Bonus_Edition", "Realm_Grinder", "Sumer", "Shop_Heroes", "Liftoff", "Yu-Gi-Oh!_Legacy_of_the_Duelist", "Kindergarten", "Ancient_Space", "Intergalactic_Bubbles", "Little_Cells", "Space_Xonix", "Heavy_Gear_Assault", "How_to_Survive_2", "Interstellar_Rift", "Front_Defense", "Tokyo_Twilight_Ghost_Hunters_Daybreak:_Special_Gigs", "The_Journey_Down:_Chapter_One", "The_Journey_Down:_Chapter_Three", "Sundered", "The_Gateway_Trilogy", "NotCoD", "Battle_Mages:_Sign_of_Darkness", "SphereFACE", "Exanima", "Aftercharge", "Trianga's_Project:_Battle_Splash_2.0", "Badland_Bandits", "Fidel_Dungeon_Rescue", "My_Free_Zoo", "The_Jackbox_Party_Pack_4", "Afterparty", "Loot_Box_Simulator_20!8", "Azkend_2:_The_World_Beneath", "Gaben_Kingdom", "Train_Journey", "Colonumbers", "Mahjong_Roadshow", "Play_with_Gilbert", "Shiftlings", "Food_Truck_VR", "Vertical_Fall", "Wizard_Warz"]
+humble_pages = get_all_humble_store_pages(limit: 300)
 
-first_batch = pcgw_ids[0..48]
+puts humble_pages.inspect
 
-client.action :purge, titles: first_batch.join('|')
+batch_count = humble_pages.count % 40
+batch_count.times do |batch_num|
+  puts "Purging 40 PCGW articles."
+  current_batch = pcgw_ids[(40 * batch_num)..(40 * (batch_num + 1))]
+  puts current_batch.join('|')
+  client.action :purge, titles: current_batch.join('|')
+  puts "Purge done, sleeping..."
+  sleep 10
+end
+
