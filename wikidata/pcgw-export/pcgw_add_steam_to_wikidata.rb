@@ -18,6 +18,11 @@ require_relative '../wikidata_helper.rb'
 include PcgwHelper
 include WikidataHelper
 
+# Killing the script mid-run gets caught by the rescues later in the script
+# and fails to kill the script. This makes sure that the script can be killed
+# normally.
+trap("SIGINT") { exit! }
+
 endpoint = "https://query.wikidata.org/sparql"
 
 def query
