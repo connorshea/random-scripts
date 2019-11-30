@@ -50,6 +50,30 @@ def get_wikidata_items_with_steam_and_no_lutris_from_sparql
   return rows
 end
 
+# For comparing using Levenshtein Distance.
+# https://stackoverflow.com/questions/16323571/measure-the-distance-between-two-strings-with-ruby
+require "rubygems/text"
+
+def games_have_same_name?(name1, name2)
+  name1 = name1.downcase
+  name2 = name2.downcase
+  return true if name1 == name2
+
+  levenshtein = Class.new.extend(Gem::Text).method(:levenshtein_distance)
+
+  distance = levenshtein.call(name1, name2)
+  return true if distance <= 2
+
+  name1 = name1.gsub('&', 'and')
+  name2 = name2.gsub('&', 'and')
+  name1 = name1.gsub('deluxe', '').strip
+  name2 = name2.gsub('deluxe', '').strip
+
+  return true if name1 == name2
+
+  return false
+end
+
 if ENV['USE_LUTRIS_API']
   puts "Using the Lutris API to get all the games on the site."
 
@@ -137,8 +161,8 @@ lutris_games.each do |game|
     next
   end
 
-  # Make sure they have the same name.
-  if game['name'] == wikidata_item_for_current_game[:name]
+  # Make sure they have the same or a very similar name.
+  if games_have_same_name?(game['name'], wikidata_item_for_current_game[:name])
     games_that_can_be_matched += 1
     begin
       claim = wikidata_client.create_claim(wikidata_item_for_current_game[:wikidata_id], "value", "P7597", "\"#{game['slug']}\"")
