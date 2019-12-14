@@ -121,6 +121,12 @@ rows.each_with_index do |row, index|
     category
   end
 
+  # Skip to the next one if there aren't any game modes found in the Steam categories.
+  if categories.empty?
+    progress_bar.log "No relevant categories found for #{name}."
+    next
+  end
+
   progress_bar.log "Adding #{categories.join(', ')} to #{name}."
   progress_bar.log "#{row[:item].to_s}"
 
