@@ -5,6 +5,8 @@ gemfile do
   gem 'mediawiki_api', require: true
   gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
   gem 'sparql-client'
+  gem 'addressable'
+  gem 'ruby-progressbar', '~> 1.10'
 end
 
 require 'json'
@@ -13,7 +15,16 @@ require 'open-uri'
 require 'mediawiki_api'
 require 'mediawiki_api/wikidata/wikidata_client'
 require 'net/https'
+require_relative '../wikidata_helper.rb'
 
+include WikidataHelper
+
+# Killing the script mid-run gets caught by the rescues later in the script
+# and fails to kill the script. This makes sure that the script can be killed
+# normally.
+trap("SIGINT") { exit! }
+
+# Get video games on Wikidata with a Steam App ID and no IGDB ID.
 def query
   sparql = <<-SPARQL
     SELECT ?item ?itemLabel ?steamAppId WHERE
@@ -167,9 +178,47 @@ def import_igdb_ids_into_wikidata
 
   matchable_igdb_games = igdb_games.filter { |game| steam_app_ids.include?(game['steam_id']) }
 
+  # Authenticate with Wikidata.
+  wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
+  wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
+
+  progress_bar = ProgressBar.create(
+    total: matchable_igdb_games.count,
+    format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+  )
+
   matchable_igdb_games.each do |igdb_game|
-    puts igdb_game
+    wikidata_item = rows.find { |row| row.to_h[:steamAppId].to_s.to_i == igdb_game['steam_id'] }
+
+    wikidata_id = wikidata_item.to_h[:item].to_s.sub('http://www.wikidata.org/entity/', '')
+
+    existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: 'P5794')
+    if existing_claims != {}
+      progress_bar.log "This item already has an IGDB ID."
+      progress_bar.increment
+      next
+    end
+
+    # Make sure the names match.
+    unless wikidata_item[:itemLabel].to_s.downcase == igdb_game['name'].downcase
+      progress_bar.log "Names don't match, skipping. (#{wikidata_item[:itemLabel]}, #{igdb_game['name']})"
+      progress_bar.increment
+      next
+    end
+
+    progress_bar.log "Adding #{igdb_game['slug']} to #{wikidata_item[:itemLabel]}"
+
+    begin
+      claim = wikidata_client.create_claim(wikidata_id, "value", "P5794", "\"#{igdb_game['slug']}\"")
+    rescue MediawikiApi::ApiError => e
+      progress_bar.log e
+    end
+
+    progress_bar.increment
+    sleep 1
   end
+
+  progress_bar.finish unless progress_bar.finished?
 end
 
 # get_external_ids()
