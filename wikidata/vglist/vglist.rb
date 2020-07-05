@@ -207,9 +207,9 @@ vglist_games.each do |game|
     rescue MediawikiApi::ApiError => e
       progress_bar.log e
     end
-    sleep 1
+    # sleep 1
   else
-    progress_bar.log "#{game['name']} can be matched based on its Wikidata ID, but the name on Wikidata differs from the one on vglist. (vglist ID: #{game['id']}, Wikidata name: #{wikidata_item_for_current_game[:name]})"
+    progress_bar.log "#{game['name']} can be matched based on its Wikidata ID, but the name on Wikidata differs from the one on vglist. (vglist ID: #{game['id']}, Wikidata name: #{wikidata_item_for_current_game[:name]}, Wikidata ID: #{wikidata_item_for_current_game[:wikidata_id]})"
     games_that_have_different_names += 1
   end
 
