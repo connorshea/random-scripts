@@ -1,4 +1,18 @@
 # frozen_string_literal: true
+
+##
+# USAGE:
+#
+# This script pulls down every game from vglist and then - based on their Wikidata IDs - will update their Wikidata items with the vglist ID, if it exists.
+#
+# ENVIRONMENT VARIABLES:
+#
+# USE_VGLIST_API (optional): defaults to false, whether to actually pull all the games down from the vglist API or to use the stored vglist_games.json file. Used for repeated runs so the vglist API doesn't get hit so many times.
+# VGLIST_EMAIL (optional): email address for your vglist account
+# VGLIST_TOKEN (optional): access token for your vglist account
+# WIKIDATA_USERNAME: username for Wikidata account
+# WIKIDATA_PASSWORD: password for Wikidata account
+
 require 'bundler/inline'
 
 gemfile do
@@ -119,7 +133,7 @@ if ENV['USE_VGLIST_API']
 
   # If it's nil or has a value (aka it's not false), then continue looping.
   while next_page_cursor.nil? || next_page_cursor
-    # Sleep for 1 second between each iteration.
+    # Sleep for half a second between each iteration.
     sleep 0.5
     puts "#{vglist_games.length} games catalogued so far."
     response = VGListGraphQL::Client.query(GamesQuery, variables: { page: next_page_cursor })
