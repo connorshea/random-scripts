@@ -75,13 +75,14 @@ module PcgwHelper
   # @param [String] game Game title
   # @param [Array<Symbol>] attributes An array of symbols for . Options are :developer, :publisher, :engine, :release_date, :wikipedia, :cover, :platforms, :series, :steam_app_id, :wine_app_id.
   #
-  # @return [Hash] A hash from the JSON JSON
-  #
+  # @return [Hash] A hash from the JSON
   def get_attributes_for_game(game, attributes)
     attributes.map! { |attr| pcgw_attrs[attr] }
 
     response = pcgw_api_url(game, attributes, offset: 0, limit: 5)
-    printouts = response.dig('query', 'results').values[0].dig('printouts')
+    results = response.dig('query', 'results')
+    return {} unless results.respond_to?(:values)
+    printouts = results.values[0].dig('printouts')
     # puts JSON.pretty_generate(printouts)
     printouts.each_with_index do |(property, value), _index|
       if property == pcgw_attrs[:wikipedia]

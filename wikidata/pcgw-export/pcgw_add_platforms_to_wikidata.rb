@@ -66,13 +66,14 @@ rows.each do |row|
   platforms = PcgwHelper.get_attributes_for_game(game, %i[platforms])
   next unless platforms.respond_to?(:values) # Skip if the platforms object returned is invalid, that way we don't error.
   platforms = platforms.values[0]
-  if platforms.empty?
+  if platforms.nil? || platforms.empty?
     progress_bar.log "No platforms found for #{key_hash[:itemLabel].to_s}."
     next
   end
 
   wikidata_id = key_hash[:item].to_s.sub('http://www.wikidata.org/entity/', '')
 
+  platforms.select! { |platform| platform_wikidata_ids.keys.include?(platform) }
   platforms.each do |platform|
     if platform == 'Mac OS'
       progress_bar.log 'Mac OS, skipping.'
