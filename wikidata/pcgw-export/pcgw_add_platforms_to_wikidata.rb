@@ -61,10 +61,11 @@ progress_bar = ProgressBar.create(
 rows.each do |row|
   progress_bar.increment
   key_hash = row.to_h
-  # puts "#{key_hash[:item].to_s}: #{key_hash[:itemLabel].to_s}"
   game = key_hash[:pcgw_id].to_s
-  
-  platforms = PcgwHelper.get_attributes_for_game(game, %i[platforms]).values[0]
+
+  platforms = PcgwHelper.get_attributes_for_game(game, %i[platforms])
+  next unless platforms.respond_to?(:values) # Skip if the platforms object returned is invalid, that way we don't error.
+  platforms = platforms.values[0]
   if platforms.empty?
     progress_bar.log "No platforms found for #{key_hash[:itemLabel].to_s}."
     next
@@ -85,7 +86,6 @@ rows.each do |row|
     }
 
     claim = wikidata_client.create_claim(wikidata_id, "value", "P400", wikidata_platform_identifier.to_json)
-    # claim_id = claim.data.dig('claim', 'id')
   end
 end
 
