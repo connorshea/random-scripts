@@ -211,7 +211,7 @@ anilist_anime.each do |anime|
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
   end
-  sleep 4
+  sleep 1
 
   progress_bar.increment
 end
