@@ -119,10 +119,15 @@ if ENV['USE_ANILIST_API']
 
   # If it's nil or has a value (aka it's not false), then continue looping.
   while next_page.nil? || next_page
-    # Sleep for 2 seconds between each iteration.
-    sleep 2
+    # Sleep for half a second between each iteration.
+    sleep 0.5
     puts "#{anilist_manga.length} manga catalogued so far."
     response = AniListGraphQL::Client.query(MangaQuery, variables: { page: next_page, per_page: 50, search: nil })
+
+    if response.data.nil?
+      puts response.inspect
+      break
+    end
 
     response.data.page.media.each do |manga|
       # Dup it otherwise you'll get a frozen hash error.
@@ -208,7 +213,7 @@ anilist_manga.each do |manga|
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
   end
-  sleep 4
+  sleep 2
 
   progress_bar.increment
 end

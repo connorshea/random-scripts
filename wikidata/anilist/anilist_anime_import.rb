@@ -127,6 +127,10 @@ if ENV['USE_ANILIST_API']
     puts "#{anilist_anime.length} anime catalogued so far."
     response = AniListGraphQL::Client.query(AnimeQuery, variables: { page: next_page, per_page: 50, search: nil })
 
+    if response.data.nil?
+      puts response.inspect
+      break
+    end
     response.data.page.media.each do |anime|
       # Dup it otherwise you'll get a frozen hash error.
       anime_hash = anime.to_h.dup
