@@ -21,7 +21,6 @@ gemfile do
   gem 'addressable'
   gem 'ruby-progressbar', '~> 1.10'
   gem 'graphql-client', '~> 0.16.0'
-  gem 'pry'
 end
 
 require 'json'
