@@ -61,3 +61,4 @@ wikidata/pcgw/pcgw_mixnmatch.tsv
 wikidata/pcgw-export/gogdb_backup_old.csv
 
 wikidata/pcgw-dumper/dumps/*.html
+wikidata/pcgw-dumper/dumps/*.xml
