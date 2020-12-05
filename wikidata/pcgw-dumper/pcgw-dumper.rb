@@ -1,4 +1,4 @@
-# For dumping a PCGW Page.
+# For dumping all the PCGW articles.
 
 require 'bundler/inline'
 
@@ -6,6 +6,7 @@ gemfile do
   source 'https://rubygems.org'
   gem 'addressable'
   gem 'ruby-progressbar', '~> 1.10'
+  gem 'httparty'
 end
 
 require 'open-uri'
@@ -14,57 +15,53 @@ require_relative '../pcgw-export/pcgw_helper.rb'
 include PcgwHelper
 
 class PcgwDumper
-  def initialize(page_name)
-    @page_name = page_name
-    @url = "https://www.pcgamingwiki.com/wiki/#{page_name}"
-  end
+  class << self
 
-  def page_contents
-    URI.open(@url).read
-  end
+    # @param games [Array<String>] an array of PCGW IDs
+    def post_export(games)
+      return HTTParty.post(
+        'https://www.pcgamingwiki.com/wiki/Special:Export',
+        body: {
+          catname: '',
+          pages: games.join("\r\n"),
+          curonly: '1',
+          wpDownload: '1',
+          wpEditToken: '+\\',
+          title: 'Special:Export'
+        }
+      )
+    end
 
-  def dumped_file_path
-    File.join(
-      File.dirname(__FILE__),
-      'dumps',
-      "#{@page_name.downcase.gsub('-', '_').gsub(/[;:!*$#()+.]/, '').gsub('__', '_')}.html"
-    )
+    def dumps_file_path
+      File.join(File.dirname(__FILE__), 'dumps')
+    end
   end
-
-  attr_reader :page_name
-  attr_reader :url
 end
 
-
-# articles_with_steam_app_ids = PcgwHelper.get_all_pages_with_property(:steam_app_id)
-
-# File.write(File.join(File.dirname(__FILE__), 'pcgw_articles.json'), JSON.pretty_generate(articles_with_steam_app_ids))
-
-# page = PcgwDumper.new('Half-Life_2')
-# File.write(
-#   page.dumped_file_path,
-#   page.page_contents
-# )
-
+if ENV['CREATE_PCGW_ARTICLES_JSON']
+  puts 'Creating pcgw_articles.json, this may take a while...'
+  
+  articles_with_steam_app_ids = PcgwHelper.get_all_pages_with_property(:steam_app_id)
+  
+  File.write(File.join(File.dirname(__FILE__), 'pcgw_articles.json'), JSON.pretty_generate(articles_with_steam_app_ids))
+  puts 'Successfully created pcgw_articles.json.'
+else
+  puts 'Continuing with PCGW dump. Set CREATE_PCGW_ARTICLES_JSON environment variable if you need to create pcgw_articles.json first.'
+end
 
 articles = JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_articles.json')))
 
+# Yeet anything with really weird characters in the title.
 articles = articles.reject do |article|
   ['<', '>', '%'].any? { |i| article['fullurl'].include?(i) }
 end
 
-progress_bar = ProgressBar.create(
-  total: articles.count,
-  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
-)
+articles = articles.map { |article| article['fullurl'].gsub('https://www.pcgamingwiki.com/wiki/', '') }
 
-articles.each do |article|
-  progress_bar.increment
-  page = PcgwDumper.new(article['fullurl'].gsub('https://www.pcgamingwiki.com/wiki/', ''))
-  File.write(
-    page.dumped_file_path,
-    page.page_contents
-  )
+# Create dumps in sets of 5000.
+articles.each_slice(5000).with_index do |article_slice, i|
+  puts "Dump #{i}"
+  dump = PcgwDumper.post_export(article_slice)
+  File.write(File.join(PcgwDumper.dumps_file_path, "dump#{i}.xml"), dump)
 end
 
-progress_bar.finish
