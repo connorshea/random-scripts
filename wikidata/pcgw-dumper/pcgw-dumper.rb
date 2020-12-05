@@ -49,19 +49,51 @@ else
   puts 'Continuing with PCGW dump. Set CREATE_PCGW_ARTICLES_JSON environment variable if you need to create pcgw_articles.json first.'
 end
 
-articles = JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_articles.json')))
+if ENV['CREATE_XML_DUMPS']
+  articles = JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_articles.json')))
 
-# Yeet anything with really weird characters in the title.
-articles = articles.reject do |article|
-  ['<', '>', '%'].any? { |i| article['fullurl'].include?(i) }
+  # Yeet anything with really weird characters in the title.
+  articles = articles.reject do |article|
+    ['<', '>', '%'].any? { |i| article['fullurl'].include?(i) }
+  end
+
+  articles = articles.map { |article| article['fullurl'].gsub('https://www.pcgamingwiki.com/wiki/', '') }
+
+  # Create dumps in sets of 5000.
+  articles.each_slice(5000).with_index do |article_slice, i|
+    puts "Dump #{i}"
+    dump = PcgwDumper.post_export(article_slice)
+    File.write(File.join(PcgwDumper.dumps_file_path, "dump#{i}.xml"), dump)
+  end
+else
+  puts 'Continuing with reading PCGW XML dumps. Set CREATE_XML_DUMPS environment variable if you need to create the dump#{n}.xml files first.'
 end
 
-articles = articles.map { |article| article['fullurl'].gsub('https://www.pcgamingwiki.com/wiki/', '') }
+require 'rexml/document'
+include REXML
 
-# Create dumps in sets of 5000.
-articles.each_slice(5000).with_index do |article_slice, i|
-  puts "Dump #{i}"
-  dump = PcgwDumper.post_export(article_slice)
-  File.write(File.join(PcgwDumper.dumps_file_path, "dump#{i}.xml"), dump)
+pcgw_metadata = []
+
+# Iterate through each dump in the dumps directory and parse through it.
+Dir["#{File.dirname(__FILE__)}/dumps/*.xml"].each do |xml_file_path|
+  xml_file = File.open(xml_file_path)
+
+  xml_doc = REXML::Document.new(xml_file)
+
+  xml_doc.root.each_element('page') do |xml_page|
+    title = xml_page.get_text('title').to_s
+    metadata = {
+      title: title,
+      pcgw_id: title.gsub(' ', '_')
+    }
+    article_text = xml_page.get_elements('revision').first.get_text('text').to_s
+
+    metadata[:hltb_id] = article_text.match(/\|hltb[ ]+= ?(?<id>\d+)/)&.[](:id)
+    metadata[:igdb_id] = article_text.match(/\|igdb[ ]+= ?(?<id>[\w\-_]+)/)&.[](:id)
+    metadata[:mobygames_id] = article_text.match(/\|mobygames[ ]+= ?(?<id>[\w\-_]+)/)&.[](:id)
+    metadata[:steam_id] = article_text.match(/\|steam appid[ ]+= ?(?<id>\d+)/)&.[](:id)
+    pcgw_metadata << metadata
+  end
 end
 
+File.write(File.join(File.dirname(__FILE__), 'pcgw_metadata.json'), JSON.pretty_generate(pcgw_metadata))
