@@ -97,10 +97,10 @@ Dir["#{File.dirname(__FILE__)}/dumps/*.xml"].each do |xml_file_path|
     }
     article_text = xml_page.get_elements('revision').first.get_text('text').to_s
 
-    metadata[:hltb_id] = article_text.match(/\|hltb[ ]+= ?(?<id>\d+)/)&.[](:id)
+    metadata[:hltb_id] = article_text.match(/\|hltb[ ]+= ?(?<id>\d+)/)&.[](:id)&.to_i
     metadata[:igdb_id] = article_text.match(/\|igdb[ ]+= ?(?<id>[\w\-_]+)/)&.[](:id)
     metadata[:mobygames_id] = article_text.match(/\|mobygames[ ]+= ?(?<id>[\w\-_]+)/)&.[](:id)
-    metadata[:steam_id] = article_text.match(/\|steam appid[ ]+= ?(?<id>\d+)/)&.[](:id)
+    metadata[:steam_id] = article_text.match(/\|steam appid[ ]+= ?(?<id>\d+)/)&.[](:id)&.to_i
     pcgw_metadata << metadata
     progress_bar.increment
   end
