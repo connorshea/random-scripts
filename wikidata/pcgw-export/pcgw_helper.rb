@@ -128,6 +128,7 @@ module PcgwHelper
       all_pages << result
     end
     if pages.key?('query-continue-offset')
+      puts "Continuing to pull down pages from offset #{offset}" if ENV['DEBUG']
       all_pages.concat(get_all_pages_with_property(property_symbol, offset: pages['query-continue-offset'].to_i))
     end
     return all_pages
