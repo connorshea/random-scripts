@@ -80,8 +80,17 @@ Dir["#{File.dirname(__FILE__)}/dumps/*.xml"].each do |xml_file_path|
 
   xml_doc = REXML::Document.new(xml_file)
 
+  # Subtract 1 because there's a siteinfo element, everything else is a page.
+  page_count = xml_doc.root.elements.size - 1
+
+  progress_bar = ProgressBar.create(
+    total: page_count,
+    format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+  )
+
   xml_doc.root.each_element('page') do |xml_page|
     title = xml_page.get_text('title').to_s
+    progress_bar.log(title)
     metadata = {
       title: title,
       pcgw_id: title.gsub(' ', '_')
@@ -93,7 +102,12 @@ Dir["#{File.dirname(__FILE__)}/dumps/*.xml"].each do |xml_file_path|
     metadata[:mobygames_id] = article_text.match(/\|mobygames[ ]+= ?(?<id>[\w\-_]+)/)&.[](:id)
     metadata[:steam_id] = article_text.match(/\|steam appid[ ]+= ?(?<id>\d+)/)&.[](:id)
     pcgw_metadata << metadata
+    progress_bar.increment
   end
+
+  progress_bar.finish
 end
 
 File.write(File.join(File.dirname(__FILE__), 'pcgw_metadata.json'), JSON.pretty_generate(pcgw_metadata))
+
+puts "#{pcgw_metadata.length} PCGamingWiki articles parsed."
