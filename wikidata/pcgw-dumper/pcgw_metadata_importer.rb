@@ -24,7 +24,7 @@ class PcgwMetadataImporter < WikidataImporter
     },
     mobygames: {
       property_id: 1933,
-      name: 'mobyGamesId'
+      name: 'mobygamesId'
     },
     igdb: {
       property_id: 5794,
@@ -56,57 +56,68 @@ class PcgwMetadataImporter < WikidataImporter
       }
     SPARQL
   end
+
+  def self.metadata_items
+    JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_metadata.json'))).map do |item|
+      item.transform_keys(&:to_sym)
+    end
+  end
 end
 
-metadata_items = JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_metadata.json'))).map { |item| item.transform_keys(&:to_sym) }
+metadata_items = PcgwMetadataImporter.metadata_items
 
-metadata_steam_ids = metadata_items.map { |hash| hash[:steam_id] }
+# Run through the import with each database type.
+[:steam, :mobygames, :igdb, :hltb].each do |database|
+  puts "Importing PCGW IDs by matching #{database.capitalize} IDs on Wikidata..."
 
-steam_ids_without_pcgw_ids = PcgwMetadataImporter.execute_query(*PcgwMetadataImporter::PROPERTIES.values_at(:steam, :pcgw))
-wikidata_steam_ids = steam_ids_without_pcgw_ids.map(&:to_h).map do |rdf|
-  {
-    label: rdf[:itemLabel].to_s,
-    wikidata_id: rdf[:item].to_s.gsub('http://www.wikidata.org/entity/', ''),
-    steam_id: rdf[:steamId].to_s.to_i
-  }
+  metadata_database_ids = metadata_items.map { |hash| hash["#{database}_id".to_sym] }
+
+  database_ids_without_pcgw_ids = PcgwMetadataImporter.execute_query(*PcgwMetadataImporter::PROPERTIES.values_at(database, :pcgw))
+  wikidata_database_ids = database_ids_without_pcgw_ids.map(&:to_h).map do |rdf|
+    {
+      label: rdf[:itemLabel].to_s,
+      wikidata_id: rdf[:item].to_s.gsub('http://www.wikidata.org/entity/', ''),
+      "#{database}_id": rdf["#{database}Id".to_sym].to_s.to_i
+    }.transform_keys(&:to_sym)
+  end
+
+  match_count = (wikidata_database_ids.map { |hash| hash["#{database}_id".to_sym] } & metadata_database_ids).count
+  puts "Found #{match_count} #{database.capitalize} IDs from PCGW Dump that are in Wikidata and do not have PCGW IDs."
+
+  wikidata_client = PcgwMetadataImporter.wikidata_client
+
+  progress_bar = ProgressBar.create(
+    total: match_count,
+    format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+  )
+
+  wikidata_database_ids.each do |wikidata_item|
+    unless metadata_database_ids.include?(wikidata_item["#{database}_id".to_sym])
+      progress_bar.increment
+      next
+    end
+
+    progress_bar.log "Adding PCGW ID to #{wikidata_item[:label]} (#{wikidata_item[:wikidata_id]}) based on matching #{database.capitalize} ID."
+    metadata_item = metadata_items.find { |metadata_item| metadata_item["#{database}_id".to_sym] == wikidata_item["#{database}_id".to_sym] }
+
+    unless PcgwMetadataImporter.games_have_same_name?(metadata_item[:title], wikidata_item[:label])
+      progress_bar.log "PCGW Title (#{metadata_item[:title]}) does not match the Wikidata item label (#{wikidata_item[:label]})"
+      progress_bar.increment
+      next
+    end
+
+    existing_claims = WikidataHelper.get_claims(entity: wikidata_item[:wikidata_id], property: 'P6337')
+    if existing_claims != {}
+      progress_bar.log "This item already has a PCGW ID."
+      progress_bar.increment
+      sleep 1
+      next
+    end
+
+    wikidata_client.create_claim(wikidata_item[:wikidata_id], "value", "P6337", "\"#{metadata_item[:pcgw_id]}\"")
+    sleep 2
+    progress_bar.increment
+  end
+
+  progress_bar.finish unless progress_bar.finished?
 end
-
-match_count = (wikidata_steam_ids.map { |hash| hash[:steam_id] } & metadata_steam_ids).count
-puts "Found #{match_count} Steam IDs from PCGW Dump that are in Wikidata and do not have PCGW IDs."
-
-wikidata_client = PcgwMetadataImporter.wikidata_client
-
-progress_bar = ProgressBar.create(
-  total: match_count,
-  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
-)
-
-wikidata_steam_ids.each do |wikidata_item|
-  unless metadata_steam_ids.include?(wikidata_item[:steam_id])
-    progress_bar.increment
-    next
-  end
-
-  progress_bar.log "Adding PCGW ID to #{wikidata_item[:label]} (#{wikidata_item[:wikidata_id]}) based on matching Steam ID."
-  metadata_item = metadata_items.find { |metadata_item| metadata_item[:steam_id] == wikidata_item[:steam_id] }
-
-  unless PcgwMetadataImporter.games_have_same_name?(metadata_item[:title], wikidata_item[:label])
-    progress_bar.log "PCGW Title (#{metadata_item[:title]}) does not match the Wikidata item label (#{wikidata_item[:label]})"
-    progress_bar.increment
-    next
-  end
-
-  existing_claims = WikidataHelper.get_claims(entity: wikidata_item[:wikidata_id], property: 'P6337')
-  if existing_claims != {}
-    progress_bar.log "This item already has a PCGW ID."
-    progress_bar.increment
-    sleep 1
-    next
-  end
-
-  wikidata_client.create_claim(wikidata_item[:wikidata_id], "value", "P6337", "\"#{metadata_item[:pcgw_id]}\"")
-  sleep 2
-  progress_bar.increment
-end
-
-progress_bar.finish unless progress_bar.finished?
