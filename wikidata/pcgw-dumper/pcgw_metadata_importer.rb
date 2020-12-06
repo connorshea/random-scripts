@@ -58,23 +58,20 @@ class PcgwMetadataImporter < WikidataImporter
   end
 end
 
-metadata_items = JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_metadata.json')))
+metadata_items = JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_metadata.json'))).map { |item| item.transform_keys(&:to_sym) }
 
-metadata_items.map! { |item| item.transform_keys(&:to_sym) }
+metadata_steam_ids = metadata_items.map { |hash| hash[:steam_id] }
 
 steam_ids_without_pcgw_ids = PcgwMetadataImporter.execute_query(*PcgwMetadataImporter::PROPERTIES.values_at(:steam, :pcgw))
-
-steam_ids_in_metadata = metadata_items.map { |hash| hash[:steam_id] }
-
-steam_ids_in_wikidata = steam_ids_without_pcgw_ids.map(&:to_h).map do |rdf|
+wikidata_steam_ids = steam_ids_without_pcgw_ids.map(&:to_h).map do |rdf|
   {
     label: rdf[:itemLabel].to_s,
     wikidata_id: rdf[:item].to_s.gsub('http://www.wikidata.org/entity/', ''),
-    steam_app_id: rdf[:steamId].to_s.to_i
+    steam_id: rdf[:steamId].to_s.to_i
   }
 end
 
-match_count = (steam_ids_in_wikidata.map { |hash| hash[:steam_app_id] } & steam_ids_in_metadata).count
+match_count = (wikidata_steam_ids.map { |hash| hash[:steam_id] } & metadata_steam_ids).count
 puts "Found #{match_count} Steam IDs from PCGW Dump that are in Wikidata and do not have PCGW IDs."
 
 wikidata_client = PcgwMetadataImporter.wikidata_client
@@ -84,14 +81,14 @@ progress_bar = ProgressBar.create(
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
-steam_ids_in_wikidata.each do |wikidata_item|
-  unless steam_ids_in_metadata.include?(wikidata_item[:steam_app_id])
+wikidata_steam_ids.each do |wikidata_item|
+  unless metadata_steam_ids.include?(wikidata_item[:steam_id])
     progress_bar.increment
     next
   end
 
   progress_bar.log "Adding PCGW ID to #{wikidata_item[:label]} (#{wikidata_item[:wikidata_id]}) based on matching Steam ID."
-  metadata_item = metadata_items.find { |metadata_item| metadata_item[:steam_id] == wikidata_item[:steam_app_id] }
+  metadata_item = metadata_items.find { |metadata_item| metadata_item[:steam_id] == wikidata_item[:steam_id] }
 
   unless PcgwMetadataImporter.games_have_same_name?(metadata_item[:title], wikidata_item[:label])
     progress_bar.log "PCGW Title (#{metadata_item[:title]}) does not match the Wikidata item label (#{wikidata_item[:label]})"
