@@ -12,6 +12,8 @@ end
 
 require_relative '../wikidata_importer.rb'
 
+# Import PCGW IDs into Wikidata by matching them based on their Steam IDs,
+# MobyGames IDs, IGDB IDs, and HLTB IDs.
 class PcgwMetadataImporter < WikidataImporter
   PROPERTIES = {
     pcgw: {
@@ -84,6 +86,9 @@ metadata_items = PcgwMetadataImporter.metadata_items
     }.transform_keys(&:to_sym)
   end
 
+  # Get the number of matches based on this ID between the Wikidata query
+  # response and the PCGW Dump. This causes some weird stuff later, but
+  # whatever.
   match_count = (wikidata_database_ids.map { |hash| hash["#{database}_id".to_sym] } & metadata_database_ids).count
   puts "Found #{match_count} #{database.capitalize} IDs from PCGW Dump that are in Wikidata and do not have PCGW IDs."
 
@@ -95,9 +100,9 @@ metadata_items = PcgwMetadataImporter.metadata_items
   )
 
   wikidata_database_ids.each do |wikidata_item|
-    unless metadata_database_ids.include?(wikidata_item["#{database}_id".to_sym])
-      next
-    end
+    # Skip any records that aren't represented in the database set.
+    # Not part of the initial match_count, so need to increment the progress bar.
+    next unless metadata_database_ids.include?(wikidata_item["#{database}_id".to_sym])
 
     progress_bar.log "Adding PCGW ID to #{wikidata_item[:label]} (#{wikidata_item[:wikidata_id]}) based on matching #{database.capitalize} ID."
     metadata_item = metadata_items.find { |metadata_item| metadata_item["#{database}_id".to_sym] == wikidata_item["#{database}_id".to_sym] }
