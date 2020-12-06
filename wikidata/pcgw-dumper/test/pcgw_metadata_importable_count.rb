@@ -10,7 +10,7 @@ gemfile do
   gem 'pry'
 end
 
-require_relative '../wikidata_importer.rb'
+require_relative '../../wikidata_importer.rb'
 
 class PcgwMetadataImporter < WikidataImporter
   PROPERTIES = {
@@ -58,7 +58,7 @@ class PcgwMetadataImporter < WikidataImporter
   end
 
   def self.metadata_items
-    JSON.load(File.open(File.join(File.dirname(__FILE__), 'pcgw_metadata.json'))).map do |item|
+    JSON.load(File.open(File.join(File.dirname(__FILE__), '../pcgw_metadata.json'))).map do |item|
       item.transform_keys(&:to_sym)
     end
   end
@@ -67,7 +67,7 @@ end
 metadata_items = PcgwMetadataImporter.metadata_items
 
 # Get the number of matches for IDs that can be imported from PCGamingWiki.
-[:hltb, :mobygames, :igdb].each do |database|
+[:steam, :hltb, :mobygames, :igdb].each do |database|
   pcgw_ids_without_db_ids = PcgwMetadataImporter.execute_query(*PcgwMetadataImporter::PROPERTIES.values_at(:pcgw, database))
 
   wikidata_items = pcgw_ids_without_db_ids.map(&:to_h).map do |rdf|
