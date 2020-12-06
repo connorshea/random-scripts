@@ -10,7 +10,7 @@ gemfile do
 end
 
 require 'open-uri'
-require_relative '../pcgw-export/pcgw_helper.rb'
+require './wikidata/pcgw/export/pcgw_helper.rb'
 
 include PcgwHelper
 
