@@ -74,10 +74,13 @@ metadata_items = PcgwMetadataImporter.metadata_items
 
   database_ids_without_pcgw_ids = PcgwMetadataImporter.execute_query(*PcgwMetadataImporter::PROPERTIES.values_at(database, :pcgw))
   wikidata_database_ids = database_ids_without_pcgw_ids.map(&:to_h).map do |rdf|
+    database_id = rdf["#{database}Id".to_sym].to_s
+    # Convert it to an integer if the value looks like one.
+    database_id = database_id.to_i if database_id.match?(/\d+/)
     {
       label: rdf[:itemLabel].to_s,
       wikidata_id: rdf[:item].to_s.gsub('http://www.wikidata.org/entity/', ''),
-      "#{database}_id": rdf["#{database}Id".to_sym].to_s.to_i
+      "#{database}_id": database_id
     }.transform_keys(&:to_sym)
   end
 
@@ -93,7 +96,6 @@ metadata_items = PcgwMetadataImporter.metadata_items
 
   wikidata_database_ids.each do |wikidata_item|
     unless metadata_database_ids.include?(wikidata_item["#{database}_id".to_sym])
-      progress_bar.increment
       next
     end
 
