@@ -10,7 +10,7 @@ gemfile do
   gem 'pry'
 end
 
-require './wikidata/pcgw-dumper/pcgw_metadata_importer'
+require './wikidata/pcgw/dumper/pcgw_metadata_importer'
 
 # Import PCGW IDs into Wikidata by matching them based on their Steam IDs,
 # MobyGames IDs, IGDB IDs, and HLTB IDs.

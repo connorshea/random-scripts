@@ -1,4 +1,4 @@
-require_relative '../wikidata_importer.rb'
+require_relative '../../wikidata_importer.rb'
 
 class PcgwMetadataImporter < WikidataImporter
   PROPERTIES = {
