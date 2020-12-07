@@ -26,7 +26,8 @@ module PcgwHelper
     wine_app_id: 'WineHQ AppID',
     gog_app_id: 'GOGcom page',
     humble_store_id: 'Humble Store ID',
-    epic_games_store_id: 'Epic Games Store ID'
+    epic_games_store_id: 'Epic Games Store ID',
+    subtitles: 'Subtitles'
   }
 
   #

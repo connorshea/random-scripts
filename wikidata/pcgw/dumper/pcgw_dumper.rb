@@ -40,10 +40,12 @@ end
 
 if ENV['CREATE_PCGW_ARTICLES_JSON']
   puts 'Creating pcgw_articles.json, this may take a while...'
+
+  # Use all games with a subtitles property because that should get effectively
+  # all of them.
+  articles = PcgwHelper.get_all_pages_with_property(:subtitles)
   
-  articles_with_steam_app_ids = PcgwHelper.get_all_pages_with_property(:steam_app_id)
-  
-  File.write(File.join(File.dirname(__FILE__), 'pcgw_articles.json'), JSON.pretty_generate(articles_with_steam_app_ids))
+  File.write(File.join(File.dirname(__FILE__), 'pcgw_articles.json'), JSON.pretty_generate(articles))
   puts 'Successfully created pcgw_articles.json.'
 else
   puts 'Continuing with PCGW dump. Set CREATE_PCGW_ARTICLES_JSON environment variable if you need to create pcgw_articles.json first.'
@@ -97,10 +99,12 @@ Dir["#{File.dirname(__FILE__)}/dumps/*.xml"].each do |xml_file_path|
     }
     article_text = xml_page.get_elements('revision').first.get_text('text').to_s
 
-    metadata[:hltb_id] = article_text.match(/\|hltb[ ]+= ?(?<id>\d+)/)&.[](:id)&.to_i
-    metadata[:igdb_id] = article_text.match(/\|igdb[ ]+= ?(?<id>[\w\-_]+)/)&.[](:id)
-    metadata[:mobygames_id] = article_text.match(/\|mobygames[ ]+= ?(?<id>[\w\-_]+)/)&.[](:id)
-    metadata[:steam_id] = article_text.match(/\|steam appid[ ]+= ?(?<id>\d+)/)&.[](:id)&.to_i
+    metadata[:hltb_id] = article_text.match(/\|hltb[ ]*= *(?<id>\d+)/)&.[](:id)&.to_i
+    metadata[:igdb_id] = article_text.match(/\|igdb[ ]*= *(?<id>[\w\-_]+)/)&.[](:id)
+    metadata[:mobygames_id] = article_text.match(/\|mobygames[ ]*= *(?<id>[\w\-_]+)/)&.[](:id)
+    metadata[:steam_id] = article_text.match(/\|steam appid[ ]*= *(?<id>\d+)/)&.[](:id)&.to_i
+    metadata[:release_date] = article_text.match(/\|release dates[ ]*= *\n{{Infobox game\/row\/date\|Windows\|(?<release_date>.*)}}/)&.[](:release_date)
+    metadata[:developer] = article_text.match(/\|developers[ ]*= *\n{{Infobox game\/row\/developer\|(?<developer>.*)}}/)&.[](:developer)
     pcgw_metadata << metadata
     progress_bar.increment
   end
