@@ -10,6 +10,9 @@ require './wikidata/pcgw/dumper/pcgw_metadata_importer'
 
 metadata_items = PcgwMetadataImporter.metadata_items
 
+# Remove games that are only unique based on their letter casing.
+metadata_items.uniq! { |item| item[:pcgw_id].downcase }
+
 # An array of hashes with the necessary data.
 entries = []
 metadata_items.each do |item|
