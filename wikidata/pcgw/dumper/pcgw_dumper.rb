@@ -35,6 +35,15 @@ class PcgwDumper
     def dumps_file_path
       File.join(File.dirname(__FILE__), 'dumps')
     end
+
+    # Strip `|ref=` text from values if they exist.
+    def strip_references(val)
+      if val.match?(/\A(.*)\|ref=.*\z/)
+        val.match(/\A(.*)\|ref=.*\z/)[1]
+      else
+        val
+      end
+    end
   end
 end
 
@@ -104,7 +113,11 @@ Dir["#{File.dirname(__FILE__)}/dumps/*.xml"].each do |xml_file_path|
     metadata[:mobygames_id] = article_text.match(/\|mobygames[ ]*= *(?<id>[\w\-_]+)/)&.[](:id)
     metadata[:steam_id] = article_text.match(/\|steam appid[ ]*= *(?<id>\d+)/)&.[](:id)&.to_i
     metadata[:release_date] = article_text.match(/\|release dates[ ]*= *\n{{Infobox game\/row\/date\|Windows\|(?<release_date>.*)}}/)&.[](:release_date)
+    # Strip out references if there are any.
+    metadata[:release_date] = PcgwDumper.strip_references(metadata[:release_date]) unless metadata[:release_date].nil?
     metadata[:developer] = article_text.match(/\|developers[ ]*= *\n{{Infobox game\/row\/developer\|(?<developer>.*)}}/)&.[](:developer)
+    # Strip out references on developer as well.
+    metadata[:developer] = PcgwDumper.strip_references(metadata[:developer]) unless metadata[:developer].nil?
     pcgw_metadata << metadata
     progress_bar.increment
   end
