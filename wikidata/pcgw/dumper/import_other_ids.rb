@@ -19,7 +19,7 @@ metadata_items = PcgwMetadataImporter.metadata_items
 # Run through the import with each database type.
 [:mobygames, :igdb, :hltb].each do |database|
   DATABASE_ID_SYMBOL = "#{database}_id".to_sym
-  puts "Importing PCGW IDs by matching #{database.capitalize} IDs on Wikidata..."
+  puts "Importing #{database.capitalize} IDs by matching PCGW IDs on Wikidata..."
 
   metadata_database_ids = metadata_items.map { |hash| hash[DATABASE_ID_SYMBOL] }
 
@@ -72,7 +72,7 @@ metadata_items = PcgwMetadataImporter.metadata_items
 
     wikidata_client.create_claim(wikidata_item[:wikidata_id], "value", "P#{PROPERTY_ID}", "\"#{metadata_item[DATABASE_ID_SYMBOL]}\"")
     progress_bar.log "#{wikidata_item[:wikidata_id]}: Added #{database.capitalize} ID '#{metadata_item[DATABASE_ID_SYMBOL]}'."
-    sleep 2
+    sleep 3
     progress_bar.increment
   end
 
