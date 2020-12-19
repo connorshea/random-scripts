@@ -1,3 +1,9 @@
+# DEPRECATED
+#
+# This is deprecated because IGDB no longer supports API v3 and has upgraded to
+# a new API v4 with a somewhat different format. This script will no longer
+# work.
+
 require 'bundler/inline'
 
 gemfile do
