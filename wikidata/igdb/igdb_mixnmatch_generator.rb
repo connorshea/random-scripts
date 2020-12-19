@@ -26,7 +26,7 @@ igdb_games.each do |game|
     description += "#{Time.at(game[:first_release_date]).year} video game"
   end
   # Add the platforms that the game supports, if any.
-  description += " for #{game[:platforms].first(3).join(',')}" unless game[:platforms].count.zero?
+  description += " for #{game[:platforms].first(3).join(', ')}" unless game[:platforms].count.zero?
   # Add the names of the first 2 involved companies in the list.
   description += " by #{game[:involved_companies].first(2).join(' and ')}" unless game[:involved_companies].count.zero?
   description += "."
