@@ -75,41 +75,43 @@ def query
   return sparql
 end
 
-module VGListGraphQL
-  HTTP = GraphQL::Client::HTTP.new("https://vglist.co/graphql") do
-    def headers(context)
-      {
-        "User-Agent": "vglist Wikidata Importer",
-        "X-User-Email": ENV['VGLIST_EMAIL'],
-        "X-User-Token": ENV['VGLIST_TOKEN'],
-        "Content-Type": "application/json",
-        "Accept": "*/*"
-      }
+if ENV['USE_VGLIST_API']
+  module VGListGraphQL
+    HTTP = GraphQL::Client::HTTP.new("https://vglist.co/graphql") do
+      def headers(context)
+        {
+          "User-Agent": "vglist Wikidata Importer",
+          "X-User-Email": ENV['VGLIST_EMAIL'],
+          "X-User-Token": ENV['VGLIST_TOKEN'],
+          "Content-Type": "application/json",
+          "Accept": "*/*"
+        }
+      end
     end
+
+    # Fetch latest schema on init, this will make a network request
+    Schema = GraphQL::Client.load_schema(HTTP)
+
+    Client = GraphQL::Client.new(schema: Schema, execute: HTTP)
   end
 
-  # Fetch latest schema on init, this will make a network request
-  Schema = GraphQL::Client.load_schema(HTTP)
-
-  Client = GraphQL::Client.new(schema: Schema, execute: HTTP)
-end
-
-GamesQuery = VGListGraphQL::Client.parse <<-'GRAPHQL'
-  query($page: String) {
-    games(after: $page) {
-      nodes {
-        id
-        name
-        wikidataId
-      }
-      pageInfo {
-        hasNextPage
-        pageSize
-        endCursor
+  GamesQuery = VGListGraphQL::Client.parse <<-'GRAPHQL'
+    query($page: String) {
+      games(after: $page) {
+        nodes {
+          id
+          name
+          wikidataId
+        }
+        pageInfo {
+          hasNextPage
+          pageSize
+          endCursor
+        }
       }
     }
-  }
-GRAPHQL
+  GRAPHQL
+end
 
 def get_wikidata_items_with_no_vglist_id_from_sparql
   sparql_endpoint = "https://query.wikidata.org/sparql"

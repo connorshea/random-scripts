@@ -41,7 +41,7 @@ module WikidataHelper
     puts template if ENV['DEBUG']
     api_uri = URI.parse(template.to_s)
 
-    response = JSON.load(open(api_uri))
+    response = JSON.load(URI.open(api_uri))
 
     if response['success'] && action == 'wbgetentities'
       return response['entities']
