@@ -52,10 +52,24 @@ def games_have_same_name?(name1, name2)
   distance = levenshtein.call(name1, name2)
   return true if distance <= 2
 
-  name1 = name1.gsub('&', 'and')
-  name2 = name2.gsub('&', 'and')
-  name1 = name1.gsub('deluxe', '').strip
-  name2 = name2.gsub('deluxe', '').strip
+  replacements = [
+    {
+      before: '&',
+      after: 'and'
+    },
+    {
+      before: 'deluxe',
+      after: ''
+    },
+    {
+      before: ' (video game)',
+      after: ''
+    },
+  ]
+  replacements.each do |replacement|
+    name1 = name1.gsub(replacement[:before], replacement[:after]).strip
+    name2 = name2.gsub(replacement[:before], replacement[:after]).strip
+  end
 
   return true if name1 == name2
 
@@ -209,7 +223,7 @@ vglist_games.each do |game|
   # Make sure the game doesn't already have a vglist ID.
   existing_claims = WikidataHelper.get_claims(entity: wikidata_item_for_current_game[:wikidata_id], property: 'P8351')
   if existing_claims != {} && !existing_claims.nil?
-    progress_bar.log "This item already has a vglist ID."
+    progress_bar.log "SKIP: This item already has a vglist ID."
     progress_bar.increment
     next
   end
@@ -219,20 +233,21 @@ vglist_games.each do |game|
     games_that_can_be_matched += 1
     begin
       claim = wikidata_client.create_claim("Q#{wikidata_item_for_current_game[:wikidata_id]}", "value", "P8351", "\"#{game['id']}\"")
-      progress_bar.log "Updated #{wikidata_item_for_current_game[:wikidata_id]} with vglist ID of #{game['id']}."
+      progress_bar.log "SUCCESS: Updated Q#{wikidata_item_for_current_game[:wikidata_id]} with vglist ID of #{game['id']}."
     rescue MediawikiApi::ApiError => e
       progress_bar.log e
     end
     # sleep 1
   else
-    progress_bar.log "#{game['name']} can be matched based on its Wikidata ID, but the name on Wikidata differs from the one on vglist. (vglist ID: #{game['id']}, Wikidata name: #{wikidata_item_for_current_game[:name]}, Wikidata ID: #{wikidata_item_for_current_game[:wikidata_id]})"
+    progress_bar.log "NAME MISMATCH: #{game['name']} can be matched based on its Wikidata ID, but the name on Wikidata differs from the one on vglist."
+    progress_bar.log "NAME MISMATCH: (vglist ID: #{game['id']}, Wikidata name: #{wikidata_item_for_current_game[:name]}, Wikidata ID: #{wikidata_item_for_current_game[:wikidata_id]})"
     games_that_have_different_names += 1
   end
 
   progress_bar.increment
 end
 
+progress_bar.finish unless progress_bar.finished?
+
 puts "#{games_that_can_be_matched} games matched based on Wikidata ID."
 puts "#{games_that_have_different_names} games can be matched based on Wikidata ID but have different names."
-
-progress_bar.finish unless progress_bar.finished?
