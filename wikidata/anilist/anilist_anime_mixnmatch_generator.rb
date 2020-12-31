@@ -166,6 +166,7 @@ anilist_anime.each do |anime|
   title = anilist_title_converter(anime['title']).gsub("\t", '')
 
   humanized_format = MEDIA_FORMAT_HASH[anime['format'].to_sym] unless anime['format'].nil?
+  humanized_format ||= 'anime'
 
   # Generate a description based on the data we have.
   description = ''
@@ -176,7 +177,7 @@ anilist_anime.each do |anime|
   # The release year, if we have one.
   description += "#{anime['season_year']} " unless anime['season_year'].nil?
   # The type of anime, e.g. television short.
-  description += "#{humanized_format}" unless humanized_format.nil?
+  description += "#{humanized_format}"
   # The first one or two studios involved, if any.
   description += " by #{anime['studios'].first(2).join(' and ')}" unless anime['studios'].count.zero?
   # Add a period.
