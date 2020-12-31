@@ -161,7 +161,9 @@ WIKIDATA_ITEM_TYPE_MAP = {
 anilist_anime_entries = []
 
 anilist_anime.each do |anime|
-  title = anilist_title_converter(anime['title'])
+  # Strip out tab characters because apparently there are a few of them in
+  # titles on AniList 🤨
+  title = anilist_title_converter(anime['title']).gsub("\t", '')
 
   humanized_format = MEDIA_FORMAT_HASH[anime['format'].to_sym] unless anime['format'].nil?
 
