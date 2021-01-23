@@ -27,7 +27,8 @@ module PcgwHelper
     gog_app_id: 'GOGcom page',
     humble_store_id: 'Humble Store ID',
     epic_games_store_id: 'Epic Games Store ID',
-    subtitles: 'Subtitles'
+    subtitles: 'Subtitles',
+    strategy_wiki_id: 'StrategyWiki'
   }
 
   #
@@ -65,7 +66,7 @@ module PcgwHelper
     )
 
     puts template.to_s if ENV['DEBUG']
-    response = JSON.load(open(URI.parse(template.to_s)))
+    response = JSON.load(URI.open(URI.parse(template.to_s)))
     puts JSON.pretty_generate(response) if ENV['DEBUG']
     response
   end
@@ -164,7 +165,7 @@ module PcgwHelper
     # Have to replace %25 with % because Addressable is dumb and so is the MediaWiki API.
     template_string = template.to_s.gsub('%25', '%')
     puts template_string if ENV['DEBUG']
-    response = JSON.load(open(URI.parse(template_string)))
+    response = JSON.load(URI.open(URI.parse(template_string)))
     puts JSON.pretty_generate(response) if ENV['DEBUG']
     response
   end
