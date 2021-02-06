@@ -62,7 +62,7 @@ REFERENCE_PROPERTIES = {
   reference_url: 'P854'
 }
 
-PCGAMINGWIKI_PID = 17013880
+PCGAMINGWIKI_QID = 17013880
 
 # Need to use wbsetreference API here. The JSON snak input for adding the
 # reference URL, stated in, and retreived values looks like this, it is
@@ -169,8 +169,8 @@ rows.each do |row|
         "datavalue" => {
           "value" => {
             "entity-type" => "item",
-            "numeric-id" => PCGAMINGWIKI_PID,
-            "id" => "Q#{PCGAMINGWIKI_PID}"
+            "numeric-id" => PCGAMINGWIKI_QID,
+            "id" => "Q#{PCGAMINGWIKI_QID}"
           },
           "type" => "wikibase-entityid"
         }

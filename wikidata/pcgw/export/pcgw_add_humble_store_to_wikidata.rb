@@ -72,6 +72,14 @@ pcgw_games.filter! { |game| !game.nil? }
 # Create an array of PCGW IDs that have Humble Store IDs.
 pcgw_ids = pcgw_games.map { |game| game[:pcgw_id] }
 
+REFERENCE_PROPERTIES = {
+  stated_in: 'P248',
+  retreived: 'P813',
+  reference_url: 'P854'
+}
+
+PCGAMINGWIKI_QID = 17013880
+
 rows.each do |row|
   progress_bar.increment
 
@@ -111,8 +119,66 @@ rows.each do |row|
     claim = wikidata_client.create_claim(wikidata_id, "value", "P4477", "\"#{humble_store_id}\"")
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
+    next
   end
-  # claim_id = claim.data.dig('claim', 'id')
+
+  # Get the claim ID returned from the create_claim method.
+  claim_id = claim.data.dig('claim', 'id')
+
+  snak = {
+    REFERENCE_PROPERTIES[:stated_in] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:stated_in],
+        "datatype" => "wikibase-item",
+        "datavalue" => {
+          "value" => {
+            "entity-type" => "item",
+            "numeric-id" => PCGAMINGWIKI_QID,
+            "id" => "Q#{PCGAMINGWIKI_QID}"
+          },
+          "type" => "wikibase-entityid"
+        }
+      }
+    ],
+    REFERENCE_PROPERTIES[:retreived] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:retreived],
+        "datatype" => "time",
+        "datavalue" => {
+          "value" => {
+            "time" => Date.today.strftime("+%Y-%m-%dT%H:%M:%SZ"),
+            "timezone" => 0,
+            "before" => 0,
+            "after" => 0,
+            "precision" => 11,
+            "calendarmodel" => "http://www.wikidata.org/entity/Q1985727"
+          },
+          "type" => "time"
+        }
+      }
+    ],
+    REFERENCE_PROPERTIES[:reference_url] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:reference_url],
+        "datatype" => "url",
+        "datavalue" => {
+          "value" => "https://www.pcgamingwiki.com/wiki/#{key_hash[:pcgw_id].to_s}",
+          "type" => "string"
+        }
+      }
+    ]
+  }
+
+  progress_bar.log 'Adding reference to statement...'
+  begin
+    wikidata_client.set_reference(claim_id, snak.to_json)
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
+  end
+  sleep 1
 end
 
 progress_bar.finish unless progress_bar.finished?
