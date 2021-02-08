@@ -64,12 +64,28 @@ REFERENCE_PROPERTIES = {
 
 PCGAMINGWIKI_QID = 17013880
 
+all_pages = PcgwHelper.get_all_pages_with_property(:wine_app_id)
+pcgw_games = all_pages.map do |page|
+  winehq_ids = page["printouts"][PcgwHelper.get_pcgw_attr_name(:wine_app_id)]
+  nil if winehq_ids.empty?
+  {
+    name: page["name"],
+    pcgw_id: page["fullurl"].sub('https://www.pcgamingwiki.com/wiki/', ''),
+    winehq_id: winehq_ids[0]
+  }
+end
+
+pcgw_games.filter! { |game| !game.nil? }
+
+# Create an array of PCGW IDs that have WineHQ IDs.
+pcgw_ids = pcgw_games.map { |game| game[:pcgw_id] }
+
 rows.each do |row|
   progress_bar.increment
 
   key_hash = row.to_h
-  # puts "#{key_hash[:item].to_s}: #{key_hash[:itemLabel].to_s}"
   game = key_hash[:pcgw_id].to_s
+  next unless pcgw_ids.include?(game)
   
   begin
     wine_app_ids = PcgwHelper.get_attributes_for_game(game, %i[wine_app_id])
