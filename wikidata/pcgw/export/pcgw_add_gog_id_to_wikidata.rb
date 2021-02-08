@@ -13,7 +13,7 @@ end
 require 'sparql/client'
 require 'json'
 require_relative './pcgw_helper.rb'
-require_relative '../wikidata_helper.rb'
+require_relative '../../wikidata_helper.rb'
 require 'csv'
 
 include PcgwHelper
