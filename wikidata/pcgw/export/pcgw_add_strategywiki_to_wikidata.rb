@@ -1,4 +1,12 @@
 # frozen_string_literal: true
+
+# Import StrategyWiki IDs into Wikidata from PCGamingWiki's API, complete with
+# adding references for statements.
+#
+# Environment variables:
+# - WIKIDATA_USERNAME: Username for Wikidata bot account.
+# - WIKIDATA_PASSWORD: Password for Wikidata bot account.
+
 require 'bundler/inline'
 
 gemfile do
