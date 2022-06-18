@@ -1,6 +1,7 @@
 #####
 # Use the IGDB dump to get Steam IDs for games and then use that information to
-# match IGDB IDs to Wikidata items that already have a Steam ID.
+# match IGDB IDs to Wikidata items that already have a Steam ID. Then add
+# those IGDB IDs to Wikidata.
 #
 # ENVIRONMENT VARIABLES:
 #
@@ -107,7 +108,9 @@ end
 
 # Create and return an authenticated Wikidata Client.
 def wikidata_client
-  MediawikiApi::Wikidata::WikidataClient.new('https://www.wikidata.org/w/api.php').log_in(ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"])
+  client = MediawikiApi::Wikidata::WikidataClient.new('https://www.wikidata.org/w/api.php')
+  client.log_in(ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"])
+  client
 end
 
 # Pull the Steam ID out of a Steam URL.
@@ -124,6 +127,8 @@ def steam_id_from_url(url)
   return nil if m.nil?
   m.captures.first.to_i
 end
+
+IGDB_PROPERTY = 'P5794'
 
 igdb_games = JSON.load(File.open(File.join(File.dirname(__FILE__), 'igdb_games.json'))).map do |game|
   game.transform_keys(&:to_sym)
@@ -158,12 +163,20 @@ end
 
 puts "There are #{igdb_games.count} items in Wikidata with a matching Steam ID from IGDB and no corresponding IGDB ID."
 
-# TODO: Add a progress bar.
+progress_bar = ProgressBar.create(
+  total: igdb_games.count,
+  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+)
+
+client = wikidata_client
+igdb_ids_added_count = 0
 
 # Iterate over all the IGDB Games and find the records that match a Wikidata
 # item. Then add the IGDB ID to the given item in Wikidata.
 igdb_games.each do |igdb_game|
-  puts
+  progress_bar.log ''
+  progress_bar.log "GAME: #{igdb_game[:name]}"
+
   matching_wikidata_items = []
   igdb_game[:steam_ids].each do |steam_id|
     matching_wikidata_items << rows.find { |row| row[:steam_app_id] == steam_id }
@@ -172,7 +185,11 @@ igdb_games.each do |igdb_game|
   # Filter out any nils
   matching_wikidata_items.compact!
 
-  next if matching_wikidata_items.empty?
+  if matching_wikidata_items.empty?
+    progress_bar.log 'SKIP: No matching wikidata items found.'
+    progress_bar.increment
+    next
+  end
 
   # Filter out games that don't have the same name on IGDB and Wikidata.
   # This is to prevent issues with false-positive matches due to incorrect Steam IDs.
@@ -180,14 +197,38 @@ igdb_games.each do |igdb_game|
     games_have_same_name?(igdb_game[:name], wikidata_item[:name])
   end
 
-  next if matching_wikidata_items.empty?
+  if matching_wikidata_items.empty?
+    progress_bar.log 'SKIP: No matching wikidata items found.'
+    progress_bar.increment
+    next
+  end
 
   # Just skip this if there's more than one match, no need to handle this case for now.
-  next if matching_wikidata_items.count > 1
-
-  puts "IGDB GAME: #{igdb_game[:name]}"
+  if matching_wikidata_items.count > 1
+    progress_bar.log 'SKIP: More than one matching wikidata item found.'
+    progress_bar.increment
+    next
+  end
 
   matching_wikidata_item = matching_wikidata_items.first
 
-  # TODO: Add the IGDB ID to the relevant Wikidata item.
+  # Check for an existing IGDB claim on the Wikidata item.
+  existing_claims = WikidataHelper.get_claims(entity: matching_wikidata_item[:wikidata_id], property: IGDB_PROPERTY)
+  if existing_claims != {} && !existing_claims.nil?
+    progress_bar.log "SKIP: This item already has a vglist ID."
+    progress_bar.increment
+    next
+  end
+
+  # Add a sleep to avoid hitting the rate limit.
+  sleep 1
+
+  # Add the IGDB ID to the relevant Wikidata item.
+  client.create_claim("Q#{matching_wikidata_item[:wikidata_id]}", "value", IGDB_PROPERTY, "\"#{igdb_game[:slug]}\"")
+  progress_bar.log "DONE: Added IGDB ID on Q#{matching_wikidata_item[:wikidata_id]}"
+  igdb_ids_added_count += 1
+  progress_bar.increment
 end
+
+progress_bar.finish unless progress_bar.finished?
+puts "#{igdb_ids_added_count} IGDB IDs added to Wikidata!"
