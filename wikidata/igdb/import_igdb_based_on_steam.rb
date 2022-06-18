@@ -170,6 +170,7 @@ progress_bar = ProgressBar.create(
 
 client = wikidata_client
 igdb_ids_added_count = 0
+edited_wikidata_ids = []
 
 # Iterate over all the IGDB Games and find the records that match a Wikidata
 # item. Then add the IGDB ID to the given item in Wikidata.
@@ -212,6 +213,13 @@ igdb_games.each do |igdb_game|
 
   matching_wikidata_item = matching_wikidata_items.first
 
+  # Skip if the wikidata item has already been edited in the current run of this script.
+  if edited_wikidata_ids.include?(matching_wikidata_item[:wikidata_id])
+    progress_bar.log "SKIP: This Wikidata item has already been edited. IGDB Slug: #{igdb_game[:slug]}"
+    progress_bar.increment
+    next
+  end
+
   # Check for an existing IGDB claim on the Wikidata item.
   existing_claims = WikidataHelper.get_claims(entity: matching_wikidata_item[:wikidata_id], property: IGDB_PROPERTY)
   if existing_claims != {} && !existing_claims.nil?
@@ -225,6 +233,9 @@ igdb_games.each do |igdb_game|
 
   # Add the IGDB ID to the relevant Wikidata item.
   client.create_claim("Q#{matching_wikidata_item[:wikidata_id]}", "value", IGDB_PROPERTY, "\"#{igdb_game[:slug]}\"")
+  # Add the ID to the array of Wikidata IDs we've edited.
+  edited_wikidata_ids << matching_wikidata_item[:wikidata_id]
+
   progress_bar.log "DONE: Added IGDB ID on Q#{matching_wikidata_item[:wikidata_id]}"
   igdb_ids_added_count += 1
   progress_bar.increment
