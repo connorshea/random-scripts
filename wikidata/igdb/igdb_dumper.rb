@@ -49,7 +49,7 @@ end
 
 def igdb_games_body(offset = 0)
   <<~APICALYPSE
-    fields category,first_release_date,name,platforms.name,involved_companies.company.name,slug,status,url;
+    fields category,first_release_date,name,platforms.name,involved_companies.company.name,slug,status,url,websites.category,websites.url,external_games.category,external_games.url;
     where category = 0;
     sort slug asc;
     limit 500;
@@ -83,6 +83,8 @@ igdb_games = []
   curr_games = igdb_resp.parsed_response.map do |game|
     game['first_release_date'] ||= nil
     game['platforms'] ||= []
+    game['websites'] ||= []
+    game['external_games'] ||= []
     unless game['platforms'].count.zero?
       game['platforms'] = game['platforms'].map do |hash|
         # Fix the name for the "PC" platform.
