@@ -143,7 +143,7 @@ igdb_games.map! do |igdb_game|
   external_games = igdb_game[:external_games].filter { |ext_game| ext_game['category'] == 1 }.map { |ext_game| ext_game['url'] }.compact
   websites = igdb_game[:websites].filter { |website| website['category'] == 13 }.map { |website| website['url'] }.compact
   # Set Steam IDs on the given IGDB hash.
-  igdb_game[:steam_ids] = external_games.concat(websites).uniq.map { |url| steam_id_from_url(url) }
+  igdb_game[:steam_ids] = external_games.concat(websites).uniq.map { |url| steam_id_from_url(url) }.uniq
   igdb_game
 end
 
