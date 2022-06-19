@@ -19,6 +19,7 @@ gemfile do
   gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
   gem 'sparql-client'
   gem 'addressable'
+  gem 'nokogiri'
   gem 'ruby-progressbar', '~> 1.10'
   gem 'graphql-client', '~> 0.16.0'
 end
