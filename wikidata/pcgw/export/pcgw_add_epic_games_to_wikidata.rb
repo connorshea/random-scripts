@@ -68,7 +68,7 @@ pcgw_games = all_pages.map do |page|
   }
 end
 
-pcgw_games.filter! { |game| !game.nil? }
+pcgw_games.compact!
 
 # Create an array of PCGW IDs that have Epic Games Store IDs.
 pcgw_ids = pcgw_games.map { |game| game[:pcgw_id] }
