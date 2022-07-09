@@ -57,7 +57,7 @@ wikidata_client.log_in(ENV["WIKIDATA_USERNAME"].to_s, ENV["WIKIDATA_PASSWORD"].t
 sparql_client = SPARQL::Client.new(
   "https://query.wikidata.org/sparql",
   method: :get,
-  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 3.0" }
 )
 
 # Get the response from the Wikidata query.

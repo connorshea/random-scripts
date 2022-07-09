@@ -43,7 +43,7 @@ def get_wikidata_items_with_steam_and_no_lutris_from_sparql
   client = SPARQL::Client.new(
     sparql_endpoint,
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 3.0" }
   )
 
   rows = client.query(query)
