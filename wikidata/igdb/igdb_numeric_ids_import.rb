@@ -56,7 +56,7 @@ def get_wikidata_items_with_no_igdb_numeric_id_from_sparql
   client = SPARQL::Client.new(
     sparql_endpoint,
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 3.0" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 3.1" }
   )
 
   rows = client.query(query)
