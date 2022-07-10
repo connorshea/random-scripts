@@ -33,7 +33,7 @@ module PcgwHelper
     # This one is available in Cargo but never used:
     # cover: 'Infobox_game.Cover_URL',
     # series: 'Infobox_game.Series',
-  }
+  }.freeze
 
   # For some god-foresaken reason, the response has different attribute names :|
   # So we have to have this to handle it.
@@ -81,7 +81,7 @@ module PcgwHelper
       'offset': offset
     )
 
-    template_string = template.to_s#.gsub('%25', '%')
+    template_string = template.to_s
     puts template_string if ENV['DEBUG']
     response = JSON.load(URI.open(URI.parse(template_string)))
     puts JSON.pretty_generate(response) if ENV['DEBUG']
@@ -96,11 +96,17 @@ module PcgwHelper
   #
   # @return [Hash] A hash from the JSON
   def get_attributes_for_game(game, attributes)
+    invalid_keys = attributes.difference(pcgw_attrs.keys)
+    raise ArgumentError, "The following attributes are not valid: #{invalid_keys.join(', ')}" unless invalid_keys.empty?
+
     response = pcgw_api_url(attributes, where: "Infobox_game._pageName=\"#{game.gsub('_', ' ')}\"", offset: 0, limit: 5)
     results = response.dig('cargoquery', 0, 'title')
     # Because it returns an array when there are no values under the title
     # key, rather than an empty object... for some reason.
     return {} if results.is_a?(Array)
+
+    # The Cargo API returns the precision of the release date, but we do not care about that, so delete it.
+    results.delete('Released__precision') if results.key?('Released__precision')
 
     puts JSON.pretty_generate(results) if ENV['DEBUG']
 
