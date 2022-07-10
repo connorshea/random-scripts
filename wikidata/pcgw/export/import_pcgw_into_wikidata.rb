@@ -110,6 +110,7 @@ rows.each do |row|
   progress_bar.log "Checking PCGamingWiki for #{wikidata_item_label} based on Steam App ID..."
 
   # .tap { |resp| puts resp.inspect if resp.dig('cargoquery').empty? }
+  # PCGW API requests can be ratelimited, but I'm not totally sure what the response looks like in that case...
   response = PcgwHelper.pcgw_api_url([:page_name, :steam_app_id], where: "Infobox_game.Steam_AppID HOLDS \"#{steam_app_id}\"").dig('cargoquery')
   if response.empty?
     progress_bar.log "SKIPPING: Nothing was returned by querying PCGW for Steam ID '#{steam_app_id}'."
@@ -130,6 +131,12 @@ rows.each do |row|
   unless verify_pcgw_url(pcgw_id)
     progress_bar.log("SKIPPING: '#{pcgw_id}' is invalid and could not be resolved to a valid PCGamingWiki page.")
     progress_bar.increment
+    next
+  end
+
+  existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: 'P6337')
+  if existing_claims != {}
+    progress_bar.log "This item already has a PCGamingWiki ID."
     next
   end
 
