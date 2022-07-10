@@ -22,13 +22,15 @@ module PcgwHelper
     wikipedia: 'Infobox_game.Wikipedia',
     platforms: 'Infobox_game.Available_on',
     steam_app_id: 'Infobox_game.Steam_AppID',
-    gog_app_id: 'Infobox_game.GOGcom_ID',
     strategy_wiki_id: 'Infobox_game.StrategyWiki'
     
     # The following are not available in Cargo (yet?):
     # humble_store_id: 'Humble Store ID',
     # epic_games_store_id: 'Epic Games Store ID',
     # wine_app_id: 'WineHQ AppID'
+    #
+    # This one is available, but only the numeric ID and not the URL ID :(
+    # gog_app_id: 'Infobox_game.GOGcom_ID',
     #
     # This one is available in Cargo but never used:
     # cover: 'Infobox_game.Cover_URL',
@@ -46,9 +48,10 @@ module PcgwHelper
     wikipedia: 'Wikipedia',
     platforms: 'Available on',
     steam_app_id: 'Steam AppID',
-    gog_app_id: 'GOGcom ID',
     strategy_wiki_id: 'StrategyWiki'
   }.freeze
+
+  NON_ARRAY_PROPS = [:page_name, :wikipedia, :release_date]
 
   #
   # Make an API call.
@@ -92,7 +95,7 @@ module PcgwHelper
   # Returns attributes for a given game.
   #
   # @param game [String] Game title, in a format like 'Half-Life_2' (from the PCGW URL).
-  # @param attributes [Array<Symbol>] An array of symbols for attributes. Options are :page_name, :developer, :publisher, :engine, :release_date, :wikipedia, :platforms, :steam_app_id, :gog_id.
+  # @param attributes [Array<Symbol>] An array of symbols for attributes. Options are :page_name, :developer, :publisher, :engine, :release_date, :wikipedia, :platforms, :steam_app_id, :gog_app_id.
   #
   # @return [Hash] A hash from the JSON
   def get_attributes_for_game(game, attributes)
@@ -112,7 +115,15 @@ module PcgwHelper
 
     results.transform_keys! { |key| pcgw_attrs_output.invert[key] }
     results.each_pair do |property, value|
-      results[property] = value.split(',').map(&:strip) if property != :page_name && value&.include?(',')
+      results[property] = value.split(',').map(&:strip) if !NON_ARRAY_PROPS.include?(property)
+      # The release date is in a format like "2010-05-10;2013-06-02" when there's more than one release date.
+      results[property] = value.split(';') if property == :release_date
+    end
+
+    # The Cargo API doesn't include the key-value pair at all if the value is null,
+    # and that's stupid, so we're gonna fix it.
+    attributes.difference(results.keys).each do |attrib|
+      results[attrib] = nil
     end
 
     results
@@ -122,22 +133,16 @@ module PcgwHelper
   #
   # Returns an array of hashes like so:
   # ```json
-  # {
-  #   "cargoquery": [
-  #     {
-  #       "title": {
-  #         "Name": "Bloodlines of Prima",
-  #         "Steam AppID": "686090"
-  #       }
-  #     },
-  #     {
-  #       "title": {
-  #         "Name": "BloodLust 2: Nemesis",
-  #         "Steam AppID": "758080"
-  #       }
-  #     }
-  #   ]
-  # }
+  # [
+  #   {
+  #     page_name: "Bloodlines of Prima",
+  #     steam_app_id: "686090"
+  #   },
+  #   {
+  #     page_name: "BloodLust 2: Nemesis",
+  #     steam_app_id: "758080"
+  #   }
+  # ]
   # ```
   #
   # @param property_symbol [Symbol] The name of a PCGW attribute from `pcgw_attrs`.
@@ -146,16 +151,23 @@ module PcgwHelper
   # @return [Array<Hash>]
   def get_all_pages_with_property(property_symbol, limit: 100, offset: 0)
     all_pages = []
-    pages = get_pages_with_property(property_symbol, limit: limit, offset: offset)
-    pages.dig('cargoquery').each do |key, result|
-      result["Name"] = key
+    pages = get_pages_with_property(property_symbol, limit: limit, offset: offset).dig('cargoquery')
+    pages.each do |result|
+      result = result.dig('title')
+      result.transform_keys! { |key| pcgw_attrs_output.invert[key] }
+
+      result.each_pair do |property, value|
+        result[property] = value.split(',').map(&:strip) if !NON_ARRAY_PROPS.include?(property)
+        # The release date is in a format like "2010-05-10;2013-06-02" when there's more than one release date.
+        result[property] = value.split(';') if property == :release_date
+      end
       all_pages << result
     end
     # As long as the response from cargoquery isn't an empty array, keep going.
-    unless pages.dig('cargoquery').empty?
+    unless pages.empty?
       puts "Continuing to pull down pages from offset #{offset}" if ENV['DEBUG']
-      all_pages.concat(get_all_pages_with_property(property_symbol, offset: offset + limit, limit: limit))
       sleep 0.5
+      all_pages.concat(get_all_pages_with_property(property_symbol, offset: offset + limit, limit: limit))
     end
     return all_pages
   end
@@ -177,7 +189,7 @@ module PcgwHelper
       'format': 'json',
       'tables': 'Infobox_game',
       'fields': [pcgw_attrs[:page_name], property].join(','),
-      'where': "#{property} HOLDS NOT NULL",
+      'where': "#{property} HOLDS LIKE \"%\"", # This is cursed, but for some reason "HOLDS NOT NULL" doesn't work.
       'limit': limit,
       'offset': offset
     )
