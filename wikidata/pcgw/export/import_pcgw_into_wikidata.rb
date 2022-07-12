@@ -14,6 +14,10 @@ end
 require 'sparql/client'
 require 'json'
 require_relative './pcgw_helper.rb'
+require_relative '../../wikidata_helper.rb'
+
+include PcgwHelper
+include WikidataHelper
 
 # For comparing using Levenshtein Distance.
 # https://stackoverflow.com/questions/16323571/measure-the-distance-between-two-strings-with-ruby
@@ -44,8 +48,6 @@ def games_have_same_name?(name1, name2)
 
   return false
 end
-
-include PcgwHelper
 
 endpoint = "https://query.wikidata.org/sparql"
 
