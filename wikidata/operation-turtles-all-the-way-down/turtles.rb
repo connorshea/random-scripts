@@ -6,7 +6,7 @@
 # There are SO MANY items on Wikidata with this problem, it'd be unrealistic
 # to solve them manually in any reasonable timeframe. So, automation it is...
 #
-# For example, all of the following items are listed as both an anime and a manga in the same item:
+# For example, all of the following items are listed as both an anime and a manga in the same item (as of writing, July 16 2022):
 # - https://www.wikidata.org/wiki/Q1477323
 # - https://www.wikidata.org/wiki/Q699760
 # - https://www.wikidata.org/wiki/Q427448
@@ -40,7 +40,7 @@
 # and "anime television series", but not a light novel or video game.
 # This returns around 700 items. We might want to modify this to include
 # items marked as "anime film" as well.
-SPARQL_QUERY = <<~SPARQL
+SPARQL_QUERY = <<~SPARQL.freeze
   SELECT DISTINCT ?item ?itemLabel WHERE {
     SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE]". }
     {
@@ -76,6 +76,7 @@ MANGA_SERIES_QID = 'Q21198342'.freeze
 LIGHT_NOVEL_QID = 'Q747381'.freeze
 LIGHT_NOVEL_SERIES_QID = 'Q104213567'.freeze
 VIDEO_GAME_QID = 'Q7889'.freeze
+INSTANCE_OF_PID = 'P31'.freeze
 
 ANIME_SPECIFIC_PROPERTIES = {
   'list of episodes': 'P1811',
@@ -88,6 +89,14 @@ ANIME_SPECIFIC_PROPERTIES = {
   'director': 'P57',
   'voice actor': 'P725',
   'discography': 'P358',
+  # This one is debatable, but generally speaking you wouldn't have a character
+  # designer on a manga, so it should be safe 99% of the time to assume this is
+  # anime-specific.
+  'character designer': 'P8670',
+  # For some reason this has a constraint that prevents it from being used on
+  # manga, light novels, and media franchises, so we'll just consider it an
+  # anime-only property.
+  'intended public': 'P2360',
 
   'MyAnimeList anime ID': 'P4086',
   'AniList anime ID': 'P8729',
@@ -130,9 +139,6 @@ SHARED_PROPERTIES = {
   'country of origin': 'P495',
   'media franchise': 'P8345',
   'genre': 'P136',
-  # NOTE: Anime items may have a constraint violation if this property is
-  # used? Not sure why it's set up that way, but yeah.
-  'intended public': 'P2360',
   'main subject': 'P921',
   'list of characters': 'P1881',
 }.freeze
