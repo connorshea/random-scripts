@@ -112,7 +112,7 @@ if ENV['USE_VGLIST_API']
 
   GamesQuery = VGListGraphQL::Client.parse <<-'GRAPHQL'
     query($page: String) {
-      games(after: $page) {
+      games(after: $page, first: 100) {
         nodes {
           id
           name
