@@ -28,6 +28,11 @@ require 'sparql/client'
 require 'json'
 require 'debug'
 
+# Killing the script mid-run gets caught by the rescues later in the script
+# and fails to kill the script. This makes sure that the script can be killed
+# normally.
+trap("SIGINT") { exit! }
+
 endpoint = "https://query.wikidata.org/sparql"
 
 def query
@@ -82,7 +87,11 @@ rows.each do |row|
 
   progress_bar.log "Adding new description to #{item_id}: #{new_description}"
 
-  wikidata_client.action(:wbsetdescription, id: item_id, language: 'en', value: new_description)
+  begin
+    wikidata_client.action(:wbsetdescription, id: item_id, language: 'en', value: new_description)
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
+  end
 
   sleep 1
 end
