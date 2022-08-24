@@ -93,7 +93,7 @@ rows.each do |row|
     progress_bar.log e
   end
 
-  sleep 1
+  sleep 0.5
 end
 
 progress_bar.finish unless progress_bar.finished?
