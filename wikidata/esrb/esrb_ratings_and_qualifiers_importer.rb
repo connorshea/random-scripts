@@ -1,0 +1,136 @@
+require 'json'
+
+# Hash of Platform names and their Wikidata QIDs.
+WIKIDATA_PLATFORMS = {
+  "Windows": 1406,
+  "PlayStation 2": 10680,
+  "iOS": 48493,
+  "Commodore 64": 99775,
+  "Disk Operating System": 170434,
+  "macOS": 14116,
+  "PlayStation 3": 10683,
+  "Xbox 360": 48263,
+  "Nintendo DS": 170323,
+  "DS": 170323,
+  "Super Nintendo Entertainment System": 183259,
+  "Amiga": 100047,
+  "PlayStation": 10677,
+  "Android": 94,
+  "Wii": 8079,
+  "Wii U": 56942,
+  "PlayStation 4": 5014725,
+  "Nintendo Entertainment System": 172742,
+  "arcade game machine": 192851,
+  "Linux": 388,
+  "Sega Mega Drive": 10676,
+  "Xbox": 132020,
+  "PSP": 170325,
+  "Nintendo Game Boy": 186437,
+  "Game Boy Color": 203992,
+  "Game Boy Advance": 188642,
+  "Atari ST": 627302,
+  "GameCube": 182172,
+  "Xbox One": 13361286,
+  "PS Vita": 188808,
+  "Nintendo 64": 184839,
+  "Dreamcast": 184198,
+  "Sega Dreamcast": 184198,
+  "Nintendo Switch": 19610114,
+  "Xbox Series": 98973368,
+  "PlayStation 5": 63184502,
+  "Nintendo 3DS": 203597,
+  "Stadia": 60309635,
+  "Virtual Boy": 164651,
+  "Sega Saturn": 200912,
+  "Sega Genesis": 10676,
+  "Genesis": 10676
+}.freeze
+
+# Properties
+ESRB_GAME_ID = 'P8303'
+ESRB_RATING = 'P852'
+ESRB_INTERACTIVE_ELEMENTS = 'P8428'
+
+# Wikidata QIDs for Interactive Elements values.
+INTERACTIVE_ELEMENTS = {
+  'Online Interactions Not Rated by the ESRB': 68183722,
+  'Music Downloads and/or Streams Not Rated by the ESRB': 96220171,
+  'Online Music Not Rated by the ESRB': 96220186,
+  'Users Interact': 69430207,
+  'In-Game Purchases': 69991173,
+  'In-Game Purchases (Includes Random Items)': 90412335,
+  'Shares Location': 69430054,
+  'Unrestricted Internet': 69430020,
+  'Shares Info': 97363751,
+  'Game Experience May Change During Online Play': 97302889,
+  'Digital Purchases': 102110695,
+  'In-App Purchases': 106097196
+}.freeze
+
+# Wikidata QIDs for ESRB Content Descriptors
+CONTENT_DESCRIPTORS = {
+  'Cartoon Violence': 60316462,
+  'Animated Violence': 69577345,
+  'Realistic Violence': 69583053,
+  'Crude Humor': 60300344,
+  'Mature Humor': 60317589,
+  'Animated Blood': 60316460,
+  'Fantasy Violence': 60317581,
+  'Violence': 60324429,
+  'Mild Violence': 60324381,
+  'Intense Violence': 60317584,
+  'Blood and Gore': 60316461,
+  'Realistic Blood and Gore': 69582662,
+  'Mild Language': 68205918,
+  'Strong Language': 60300342,
+  'Use of Alcohol': 60324427,
+  'Use of Drugs': 60324426,
+  'Suggestive Themes': 60324424,
+  'Strong Lyrics': 60324421,
+  'Sexual Content': 69578048,
+  'Strong Sexual Content': 60324423,
+  'Nudity': 60324383,
+  'Partial Nudity': 60300245,
+  'Sexual Themes': 60324385,
+  'Simulated Gambling': 60324387,
+  'Gambling': 97543276,
+  'Drug Reference': 60317579,
+  'Alcohol and Tobacco Reference': 99904297,
+  'Edutainment': 60300293,
+  'Blood': 60316463,
+  'Mild Blood': 77315029,
+  'Language': 60317586,
+  'Mild Suggestive Themes': 72415417,
+  'Mild Sexual Themes': 97585290,
+  'Mild Fantasy Violence': 70002023,
+  'Alcohol Reference': 60316458,
+  'Comic Mischief': 60316464,
+  'Lyrics': 60317587,
+  'Use of Tobacco': 60324428,
+  'Violent References': 69573910,
+  'Use of Alcohol and Tobacco': 96337561,
+  'Mild Lyrics': 96310546,
+  'Mild Cartoon Violence': 69993985,
+  'Use of Drugs and Alcohol': 86235040,
+  'Tobacco Reference': 60324425,
+  'Drug and Alcohol Reference': 110343784,
+  'Sexual Violence': 60324386,
+  'Animated Blood and Gore': 69577075,
+  'Mature Sexual Themes': 69821734,
+  'Mild Animated Violence': 97656786,
+  'Informational': 60724353,
+  'Some Adult Assistance May Be Needed': 60324422,
+  'Gaming': 103531650,
+  'Realistic Blood': 98556739,
+  'Mild Realistic Violence': 97656787
+}.freeze
+
+# Wikidata QIDs for Ratings values
+RATINGS = {
+  'E': 14864328,
+  'E10+': 14864329,
+  'T': 14864330,
+  'M': 14864331,
+  'EC': 14864327,
+  'AO': 14864332
+}.freeze

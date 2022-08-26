@@ -51,6 +51,8 @@ esrb_dump.map! do |esrb_game|
   }
 end
 
+# puts esrb_dump.flat_map { |game| game[:platforms] }.uniq
+
 # puts JSON.pretty_generate(esrb_dump)
 
 def generate_description(game)
