@@ -321,21 +321,21 @@ progress_bar = ProgressBar.create(
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
-# TODO: get the intersection of esrb_dump and the items from SPARQL so the
-#       progress bar estimation is more accurate and we waste less time?
-
-# Go through each item in the ESRB dump, check if they have a rating set in
-# Wikidata, and if not, add it along with the qualifiers for the content
-# descriptors, and a reference.
-esrb_dump.each do |game|
+# Go through each item in the SPARQL response, check if they exist in the ESRB Dump,
+# and then add the ESRB Rating along with the qualifiers for the content descriptors,
+# and a reference.
+items_with_esrb_id_and_no_rating.each do |item|
   progress_bar.increment
-  progress_bar.log '--------------'
+
+  progress_bar.log '----------------'
+  
+  next unless esrb_dump.map(&:esrb_id).include?(item['esrbId'].to_s.to_i)
+  
+  game = esrb_dump.find { |g| g.esrb_id == item['esrbId'].to_s.to_i }
 
   progress_bar.log "Evaluating '#{game.title}' with ESRB ID #{game.esrb_id}."
 
-  next unless items_with_esrb_id_and_no_rating.map { |g| g['esrbId'].to_s.to_i }.include?(game.esrb_id)
-
-  row = items_with_esrb_id_and_no_rating.find { |g| g['esrbId'].to_s.to_i == game.esrb_id }.to_h
+  row = item.to_h
 
   wikidata_id = row[:item].to_s.sub('http://www.wikidata.org/entity/', '')
 
@@ -446,7 +446,7 @@ esrb_dump.each do |game|
   end
 
   # To avoid hitting the API rate limit.
-  sleep 2
+  sleep 3
 end
 
 progress_bar.finish unless progress_bar.finished?
