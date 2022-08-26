@@ -1,4 +1,28 @@
+# frozen_string_literal: true
+
+# Script to add ESRB Ratings and ESRB ID Qualifiers to items.
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'mediawiki_api', require: true
+  gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
+  gem 'sparql-client'
+  gem 'ruby-progressbar', '~> 1.10'
+end
+
 require 'json'
+require 'sparql/client'
+require 'open-uri'
+require_relative '../../wikidata_helper.rb'
+include WikidataHelper
+
+# Killing the script mid-run gets caught by the rescues later in the script
+# and fails to kill the script. This makes sure that the script can be killed
+# normally.
+trap("SIGINT") { exit! }
+
+ENDPOINT = "https://query.wikidata.org/sparql"
 
 # Hash of Platform names and their Wikidata QIDs.
 WIKIDATA_PLATFORMS = {
@@ -55,6 +79,10 @@ WIKIDATA_PLATFORMS = {
 ESRB_GAME_ID = 'P8303'
 ESRB_RATING = 'P852'
 ESRB_INTERACTIVE_ELEMENTS = 'P8428'
+SUBJECT_NAMED_AS = 'P1810'
+
+# Items
+ESRB_RATINGS_DATABASE = 105295303
 
 # Wikidata QIDs for Interactive Elements values.
 INTERACTIVE_ELEMENTS = {
@@ -131,7 +159,7 @@ CONTENT_DESCRIPTORS = {
 }.freeze
 
 # Wikidata QIDs for Ratings values
-RATINGS = {
+ESRB_RATINGS = {
   'E': 14864328,
   'E10+': 14864329,
   'T': 14864330,
@@ -139,3 +167,181 @@ RATINGS = {
   'EC': 14864327,
   'AO': 14864332
 }.freeze
+
+### Load the ESRB Dump JSON
+esrb_dump = JSON.parse(File.read('wikidata/esrb/esrb_dump.json'))
+
+PLATFORM_MAPPING = {
+  'Windows PC' => 'Windows',
+  'PlayStation/PS one' => 'PlayStation'
+}.freeze
+
+REFERENCE_PROPERTIES = {
+  stated_in: 'P248',
+  retreived: 'P813',
+  reference_url: 'P854'
+}
+
+# Clean up the data a bit
+esrb_dump.map! do |esrb_game|
+  # Remove copyright symbols and other noise.
+  title = esrb_game['title'].gsub(/®|©|™/, '').strip
+
+  # Change the platform names for platforms with weird names in the ESRB Database.
+  platforms = esrb_game['platforms'].split(', ').map do |platform|
+    if PLATFORM_MAPPING.key?(platform)
+      PLATFORM_MAPPING[platform]
+    else
+      platform
+    end
+  end.uniq
+
+  descriptors = esrb_game['descriptors'].split(', ')
+  descriptors = nil if descriptors == ['No Descriptors']
+
+  OpenStruct.new({
+    esrb_id: esrb_game['certificateId'],
+    title: title,
+    publisher: esrb_game['publisher'],
+    rating: esrb_game['rating'],
+    platforms: platforms,
+    descriptors: descriptors
+  })
+end
+
+## TODO: Get all the Wikidata items with ESRB IDs and no ESRB Rating.
+def items_with_esrb_id_and_no_rating_query
+  <<-SPARQL
+    
+  SPARQL
+end
+
+## TODO: Get all the Wikidata items with ESRB IDs and no qualifiers for it.
+def items_with_esrb_id_and_no_qualifiers_query
+  <<-SPARQL
+    
+  SPARQL
+end
+
+client = SPARQL::Client.new(
+  endpoint,
+  method: :get,
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+rubyscripts@gmail.com) Ruby 3.1" }
+)
+
+items_with_esrb_id_and_no_rating = client.query(items_with_esrb_id_and_no_rating_query)
+items_with_esrb_id_and_no_qualifiers = client.query(items_with_esrb_id_and_no_qualifiers_query)
+
+wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
+wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
+
+progress_bar = ProgressBar.create(
+  total: esrb_dump.count,
+  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+)
+
+# Go through each item in the ESRB dump, check if they have a rating set in
+# Wikidata, and if not, add it along with the qualifiers for the content
+# descriptors, and a reference.
+esrb_dump.each do |game|
+  progress_bar.increment
+
+  next unless items_with_esrb_id_and_no_rating.map { |g| g['EsrbId'] }.include?(game.esrb_id)
+
+  row = items_with_esrb_id_and_no_rating.find { |g| g['EsrbId'] == game.esrb_id }.to_h
+
+  wikidata_id = row[:item].to_s.sub('http://www.wikidata.org/entity/', '')
+
+  existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: ESRB_RATING)
+  if existing_claims != {}
+    progress_bar.log "This item already has an ESRB Rating."
+    next
+  end
+
+  progress_bar.log "Adding ESRB Rating #{game.rating} to #{row[:itemLabel]}"
+  rating_qid = ESRB_RATINGS[game.rating]
+
+  if rating_qid.nil?
+    progress_bar.log "Rating '#{game.rating}' on ESRB ID #{game.esrb_id} is invalid."
+    next
+  end
+
+  begin
+    progress_bar.log rating_qid.inspect if ENV['DEBUG']
+    claim = wikidata_client.create_claim(
+      wikidata_id,
+      "value",
+      ESRB_RATING,
+      {
+        "entity-type": "item",
+        "numeric-id": rating_qid,
+        "id": "Q#{rating_qid}"
+      }.to_json
+    )
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
+    next
+  end
+
+  # Get the claim ID returned from the create_claim method.
+  claim_id = claim.data.dig('claim', 'id')
+
+  ## TODO: Add qualifiers to the newly-created ESRB rating claim.
+  # wikidata_client.set_qualifier(igdb_claim_id.to_s, 'value', IGDB_NUMERIC_GAME_PID, igdb_numeric_id.to_s.to_json)
+
+  # Add references to statement
+  reference_snak = {
+    REFERENCE_PROPERTIES[:stated_in] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:stated_in],
+        "datatype" => "wikibase-item",
+        "datavalue" => {
+          "value" => {
+            "entity-type" => "item",
+            "numeric-id" => ESRB_RATINGS_DATABASE,
+            "id" => "Q#{ESRB_RATINGS_DATABASE}"
+          },
+          "type" => "wikibase-entityid"
+        }
+      }
+    ],
+    ESRB_GAME_ID => [
+      {
+        "snaktype" => "value",
+        "property" => ESRB_GAME_ID,
+        "datavalue": {
+          "value": game.esrb_id.to_s,
+          "type": "string"
+        },
+        "datatype": "external-id"
+      }
+    ],
+    REFERENCE_PROPERTIES[:retreived] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:retreived],
+        "datatype" => "time",
+        "datavalue" => {
+          "value" => {
+            "time" => Date.today.strftime("+%Y-%m-%dT%H:%M:%SZ"),
+            "timezone" => 0,
+            "before" => 0,
+            "after" => 0,
+            "precision" => 11,
+            "calendarmodel" => "http://www.wikidata.org/entity/Q1985727"
+          },
+          "type" => "time"
+        }
+      }
+    ]
+  }
+
+  progress_bar.log 'Adding reference to statement...'
+  begin
+    wikidata_client.set_reference(claim_id, reference_snak.to_json)
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
+  end
+end
+progress_bar.finish unless progress_bar.finished?
