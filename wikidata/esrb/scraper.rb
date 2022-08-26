@@ -64,4 +64,4 @@ while end_of_results == false
   sleep 0.5
 end
 
-File.write('esrb_dump.json', JSON.pretty_generate(games))
+File.write('wikidata/esrb/esrb_dump.json', JSON.pretty_generate(games))
