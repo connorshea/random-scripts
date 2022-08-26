@@ -266,17 +266,9 @@ def generate_rating_qualifier_snak(game, progress_bar)
     end
 
     snak[CONTENT_DESCRIPTOR_PID] << {
-      "snaktype" => "value",
-      "property" => CONTENT_DESCRIPTOR_PID,
-      "datatype" => "wikibase-item",
-      "datavalue" => {
-        "value" => {
-          "entity-type" => "item",
-          "numeric-id" => CONTENT_DESCRIPTORS[descriptor.to_sym],
-          "id" => "Q#{CONTENT_DESCRIPTORS[descriptor.to_sym]}"
-        },
-        "type" => "wikibase-entityid"
-      }
+      "entity-type" => "item",
+      "numeric-id" => CONTENT_DESCRIPTORS[descriptor.to_sym],
+      "id" => "Q#{CONTENT_DESCRIPTORS[descriptor.to_sym]}"
     }
   end
 
@@ -287,17 +279,9 @@ def generate_rating_qualifier_snak(game, progress_bar)
     end
 
     snak[ESRB_INTERACTIVE_ELEMENTS_PID] << {
-      "snaktype" => "value",
-      "property" => ESRB_INTERACTIVE_ELEMENTS_PID,
-      "datatype" => "wikibase-item",
-      "datavalue" => {
-        "value" => {
-          "entity-type" => "item",
-          "numeric-id" => INTERACTIVE_ELEMENTS[interactive_elem.to_sym],
-          "id" => "Q#{INTERACTIVE_ELEMENTS[interactive_elem.to_sym]}"
-        },
-        "type" => "wikibase-entityid"
-      }
+      "entity-type" => "item",
+      "numeric-id" => INTERACTIVE_ELEMENTS[interactive_elem.to_sym],
+      "id" => "Q#{INTERACTIVE_ELEMENTS[interactive_elem.to_sym]}"
     }
   end
 
@@ -328,9 +312,9 @@ items_with_esrb_id_and_no_rating.each do |item|
   progress_bar.increment
 
   progress_bar.log '----------------'
-  
+
   next unless esrb_dump.map(&:esrb_id).include?(item['esrbId'].to_s.to_i)
-  
+
   game = esrb_dump.find { |g| g.esrb_id == item['esrbId'].to_s.to_i }
 
   progress_bar.log "Evaluating '#{game.title}' with ESRB ID #{game.esrb_id}."
@@ -380,14 +364,18 @@ items_with_esrb_id_and_no_rating.each do |item|
     progress_bar.log("No content descriptors declared for #{game.title}.")
   else
     progress_bar.log 'Adding content descriptor qualifiers to ESRB Rating statement...'
-    wikidata_client.set_qualifier(claim_id, 'value', CONTENT_DESCRIPTOR_PID, qualifier_snak[CONTENT_DESCRIPTOR_PID])
+    qualifier_snak[CONTENT_DESCRIPTOR_PID].each do |descriptor|
+      wikidata_client.set_qualifier(claim_id, 'value', CONTENT_DESCRIPTOR_PID, descriptor.to_json)
+    end
   end
 
   if qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID].empty?
     progress_bar.log("No interactive elements declared for #{game.title}.")
   else
     progress_bar.log 'Adding interactive elements qualifiers to ESRB Rating statement...'
-    wikidata_client.set_qualifier(claim_id, 'value', ESRB_INTERACTIVE_ELEMENTS_PID, qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID])
+    qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID].each do |interactive_elem|
+      wikidata_client.set_qualifier(claim_id, 'value', ESRB_INTERACTIVE_ELEMENTS_PID, interactive_elem.to_json)
+    end
   end
 
   # Add references to statement
@@ -446,7 +434,7 @@ items_with_esrb_id_and_no_rating.each do |item|
   end
 
   # To avoid hitting the API rate limit.
-  sleep 3
+  sleep 2
 end
 
 progress_bar.finish unless progress_bar.finished?
