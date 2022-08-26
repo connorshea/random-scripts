@@ -3,6 +3,7 @@ require 'json'
 # Hash of Platform names and their Wikidata QIDs.
 WIKIDATA_PLATFORMS = {
   "Windows": 1406,
+  "Windows PC": 1406,
   "PlayStation 2": 10680,
   "iOS": 48493,
   "Commodore 64": 99775,
@@ -13,8 +14,10 @@ WIKIDATA_PLATFORMS = {
   "Nintendo DS": 170323,
   "DS": 170323,
   "Super Nintendo Entertainment System": 183259,
+  "Super Nintendo": 183259,
   "Amiga": 100047,
   "PlayStation": 10677,
+  "PlayStation/PS one": 10677,
   "Android": 94,
   "Wii": 8079,
   "Wii U": 56942,
@@ -43,7 +46,9 @@ WIKIDATA_PLATFORMS = {
   "Virtual Boy": 164651,
   "Sega Saturn": 200912,
   "Sega Genesis": 10676,
-  "Genesis": 10676
+  "Genesis": 10676,
+  "Game Gear": 751719,
+  "Atari Jaguar": 650601
 }.freeze
 
 # Properties
