@@ -77,9 +77,11 @@ WIKIDATA_PLATFORMS = {
 
 # Properties
 ESRB_GAME_ID = 'P8303'
-ESRB_RATING = 'P852'
-ESRB_INTERACTIVE_ELEMENTS = 'P8428'
 SUBJECT_NAMED_AS = 'P1810'
+PLATFORM = 'P400'
+ESRB_RATING = 'P852'
+ESRB_INTERACTIVE_ELEMENTS_PID = 'P8428'
+CONTENT_DESCRIPTOR_PID = 'P7367'
 
 # Items
 ESRB_RATINGS_DATABASE = 105295303
@@ -197,7 +199,9 @@ esrb_dump.map! do |esrb_game|
   end.uniq
 
   descriptors = esrb_game['descriptors'].split(', ')
-  descriptors = nil if descriptors == ['No Descriptors']
+  descriptors = [] if descriptors == ['No Descriptors']
+
+  interactive_elements = esrb_game['interactive_elements'].map { |elem| elem['name'] }
 
   OpenStruct.new({
     esrb_id: esrb_game['certificateId'],
@@ -205,7 +209,8 @@ esrb_dump.map! do |esrb_game|
     publisher: esrb_game['publisher'],
     rating: esrb_game['rating'],
     platforms: platforms,
-    descriptors: descriptors
+    descriptors: descriptors,
+    interactive_elements: interactive_elements
   })
 end
 
@@ -221,6 +226,58 @@ def items_with_esrb_id_and_no_qualifiers_query
   <<-SPARQL
     
   SPARQL
+end
+
+# Generate qualifiers for an ESRB rating claim.
+def generate_rating_qualifier_snak(game, progress_bar)
+  snak = {
+    CONTENT_DESCRIPTOR_PID => [],
+    ESRB_INTERACTIVE_ELEMENTS_PID => []
+  }
+
+  game.descriptors.each do |descriptor|
+    unless CONTENT_DESCRIPTORS.keys.map(&:to_s).include?(descriptor)
+      progress_bar.log "'#{descriptor}' could not be found in the list of content descriptor QIDs."
+      next
+    end
+
+    snak[CONTENT_DESCRIPTOR_PID] << {
+      "snaktype" => "value",
+      "property" => CONTENT_DESCRIPTOR_PID,
+      "datatype" => "wikibase-item",
+      "datavalue" => {
+        "value" => {
+          "entity-type" => "item",
+          "numeric-id" => CONTENT_DESCRIPTORS[descriptor],
+          "id" => "Q#{CONTENT_DESCRIPTORS[descriptor]}"
+        },
+        "type" => "wikibase-entityid"
+      }
+    }
+  end
+
+  game.interactive_elements.each do |interactive_elem|
+    unless INTERACTIVE_ELEMENTS.keys.map(&:to_s).include?(interactive_elem)
+      progress_bar.log "'#{interactive_elem}' could not be found in the list of interactive elements QIDs."
+      next
+    end
+
+    snak[ESRB_INTERACTIVE_ELEMENTS_PID] << {
+      "snaktype" => "value",
+      "property" => ESRB_INTERACTIVE_ELEMENTS_PID,
+      "datatype" => "wikibase-item",
+      "datavalue" => {
+        "value" => {
+          "entity-type" => "item",
+          "numeric-id" => INTERACTIVE_ELEMENTS[interactive_elem],
+          "id" => "Q#{INTERACTIVE_ELEMENTS[interactive_elem]}"
+        },
+        "type" => "wikibase-entityid"
+      }
+    }
+  end
+
+  return snak
 end
 
 client = SPARQL::Client.new(
@@ -245,6 +302,8 @@ progress_bar = ProgressBar.create(
 # descriptors, and a reference.
 esrb_dump.each do |game|
   progress_bar.increment
+
+  progress_bar.log "Evaluating '#{game.title}' with ESRB ID #{game.esrb_id}."
 
   next unless items_with_esrb_id_and_no_rating.map { |g| g['EsrbId'] }.include?(game.esrb_id)
 
@@ -286,8 +345,22 @@ esrb_dump.each do |game|
   # Get the claim ID returned from the create_claim method.
   claim_id = claim.data.dig('claim', 'id')
 
-  ## TODO: Add qualifiers to the newly-created ESRB rating claim.
-  # wikidata_client.set_qualifier(igdb_claim_id.to_s, 'value', IGDB_NUMERIC_GAME_PID, igdb_numeric_id.to_s.to_json)
+  # Add qualifiers to the newly-created ESRB rating claim.
+  qualifier_snak = generate_rating_qualifier_snak(game, progress_bar)
+
+  if snak[CONTENT_DESCRIPTOR_PID].empty?
+    progress_bar.log("No content descriptors declared for #{game.title}.")
+  else
+    progress_bar.log 'Adding content descriptor qualifiers to ESRB Rating statement...'
+    wikidata_client.set_qualifier(claim_id, 'value', CONTENT_DESCRIPTOR_PID, qualifier_snak[CONTENT_DESCRIPTOR_PID])
+  end
+
+  if snak[ESRB_INTERACTIVE_ELEMENTS_PID].empty?
+    progress_bar.log("No interactive elements declared for #{game.title}.")
+  else
+    progress_bar.log 'Adding interactive elements qualifiers to ESRB Rating statement...'
+    wikidata_client.set_qualifier(claim_id, 'value', ESRB_INTERACTIVE_ELEMENTS_PID, qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID])
+  end
 
   # Add references to statement
   reference_snak = {
@@ -343,5 +416,9 @@ esrb_dump.each do |game|
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
   end
+
+  # To avoid hitting the API rate limit.
+  sleep 2
 end
+
 progress_bar.finish unless progress_bar.finished?
