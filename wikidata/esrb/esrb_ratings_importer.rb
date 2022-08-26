@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Script to add ESRB Ratings and ESRB ID Qualifiers to items.
+# Script to add ESRB Ratings to items.
 require 'bundler/inline'
 
 gemfile do
@@ -25,57 +25,6 @@ include WikidataHelper
 trap("SIGINT") { exit! }
 
 ENDPOINT = "https://query.wikidata.org/sparql"
-
-# Hash of Platform names and their Wikidata QIDs.
-WIKIDATA_PLATFORMS = {
-  "Windows": 1406,
-  "Windows PC": 1406,
-  "PlayStation 2": 10680,
-  "iOS": 48493,
-  "Commodore 64": 99775,
-  "Disk Operating System": 170434,
-  "macOS": 14116,
-  "PlayStation 3": 10683,
-  "Xbox 360": 48263,
-  "Nintendo DS": 170323,
-  "DS": 170323,
-  "Super Nintendo Entertainment System": 183259,
-  "Super Nintendo": 183259,
-  "Amiga": 100047,
-  "PlayStation": 10677,
-  "PlayStation/PS one": 10677,
-  "Android": 94,
-  "Wii": 8079,
-  "Wii U": 56942,
-  "PlayStation 4": 5014725,
-  "Nintendo Entertainment System": 172742,
-  "arcade game machine": 192851,
-  "Linux": 388,
-  "Sega Mega Drive": 10676,
-  "Xbox": 132020,
-  "PSP": 170325,
-  "Nintendo Game Boy": 186437,
-  "Game Boy Color": 203992,
-  "Game Boy Advance": 188642,
-  "Atari ST": 627302,
-  "GameCube": 182172,
-  "Xbox One": 13361286,
-  "PS Vita": 188808,
-  "Nintendo 64": 184839,
-  "Dreamcast": 184198,
-  "Sega Dreamcast": 184198,
-  "Nintendo Switch": 19610114,
-  "Xbox Series": 98973368,
-  "PlayStation 5": 63184502,
-  "Nintendo 3DS": 203597,
-  "Stadia": 60309635,
-  "Virtual Boy": 164651,
-  "Sega Saturn": 200912,
-  "Sega Genesis": 10676,
-  "Genesis": 10676,
-  "Game Gear": 751719,
-  "Atari Jaguar": 650601
-}.freeze
 
 # Properties
 ESRB_GAME_ID = 'P8303'
@@ -233,25 +182,6 @@ def items_with_esrb_id_and_no_rating_query
   SPARQL
 end
 
-# Get all the Wikidata items with ESRB game IDs and no qualifiers for it.
-#
-# Some of these have "unknown value" set, and I'm not sure how to get rid of them.
-# It'll have a value like this for the ESRB game ID if it's "unknown value":
-# `<http://www.wikidata.org/.well-known/genid/f8296fb7b964d7c179cb7499ba719b55>`
-def items_with_esrb_id_and_no_qualifiers_query
-  <<-SPARQL
-    SELECT DISTINCT ?item ?itemLabel ?esrbId WHERE {
-      OPTIONAL {
-        ?item p:P8303 ?statement. # Get the statement of the ESRB game ID
-        ?statement ps:P8303 ?esrbId. # Get the actual ESRB game ID
-        FILTER(NOT EXISTS { ?statement pq:P400 ?platform. }) # Filter out items where the ESRB game ID has platform qualifiers
-        FILTER(NOT EXISTS { ?statement pq:P1810 ?subject_stated_as. }) # Filter out items where the ESRB game ID has 'subjected stated as' qualifiers
-      }
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE]". }
-    }
-  SPARQL
-end
-
 # Generate qualifiers for an ESRB rating claim.
 def generate_rating_qualifier_snak(game, progress_bar)
   snak = {
@@ -295,13 +225,12 @@ client = SPARQL::Client.new(
 )
 
 items_with_esrb_id_and_no_rating = client.query(items_with_esrb_id_and_no_rating_query)
-items_with_esrb_id_and_no_qualifiers = client.query(items_with_esrb_id_and_no_qualifiers_query)
 
 wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
 wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
 
 progress_bar = ProgressBar.create(
-  total: esrb_dump.count,
+  total: items_with_esrb_id_and_no_rating.count,
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
