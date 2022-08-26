@@ -220,15 +220,45 @@ items_with_esrb_id_and_no_qualifiers.each do |item|
 
   wikidata_id = row[:item].to_s.sub('http://www.wikidata.org/entity/', '')
 
-  existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: ESRB_RATING)
-  if existing_claims != {}
-    progress_bar.log "This item already has an ESRB Rating."
+  existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: ESRB_GAME_ID)
+  claim_ids = existing_claims.dig(ESRB_GAME_ID)&.map do |claim|
+    if !claim['qualifiers'].nil?
+      nil
+    else
+      claim['id']
+    end
+  end.compact
+
+  if claim_ids.nil? || claim_ids == []
+    progress_bar.log "This item already has qualifiers for all its ESRB game ID statements."
     next
   end
 
-  # TODO: Add "subject named as" qualifier to ESRB ID.
+  progress_bar.log 'Adding subject names as qualifier to ESRB game ID claims...'
 
-  # TODO: Add "platform" qualifiers to ESRB ID.
+  # Add "subject named as" qualifier to ESRB game ID.
+  claim_ids.each do |claim_id|
+    wikidata_client.set_qualifier(claim_id, 'value', SUBJECT_NAMED_AS, game.title.to_json)
+  end
+
+  progress_bar.log 'Adding platform qualifiers to ESRB game ID claims...'
+
+  # Add "platform" qualifiers to ESRB game ID.
+  claim_ids.each do |claim_id|
+    game.platforms.each do |platform|
+      unless WIKIDATA_PLATFORMS.keys.map(&:to_s).include?(platform)
+        progress_bar.log "'#{platform}' could not be found in the platforms list."
+        next
+      end
+
+      qualifier_snak = {
+        "entity-type" => "item",
+        "numeric-id" => WIKIDATA_PLATFORMS[platform.to_sym],
+        "id" => "Q#{WIKIDATA_PLATFORMS[platform.to_sym]}"
+      }
+      wikidata_client.set_qualifier(claim_id, 'value', PLATFORM, qualifier_snak.to_json)
+    end
+  end
 
   # To avoid hitting the API rate limit.
   sleep 2
