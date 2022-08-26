@@ -362,6 +362,8 @@ items_with_esrb_id_and_no_rating.each do |item|
 
   if qualifier_snak[CONTENT_DESCRIPTOR_PID].empty?
     progress_bar.log("No content descriptors declared for #{game.title}.")
+    # The gem doesn't let us set qualifiers with novalue, so we have to use the action method directly.
+    wikidata_client.action(:wbsetqualifier, token_type: "csrf", claim: claim_id, snaktype: 'novalue', property: CONTENT_DESCRIPTOR_PID)
   else
     progress_bar.log 'Adding content descriptor qualifiers to ESRB Rating statement...'
     qualifier_snak[CONTENT_DESCRIPTOR_PID].each do |descriptor|
@@ -371,6 +373,8 @@ items_with_esrb_id_and_no_rating.each do |item|
 
   if qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID].empty?
     progress_bar.log("No interactive elements declared for #{game.title}.")
+    # The gem doesn't let us set qualifiers with novalue, so we have to use the action method directly.
+    wikidata_client.action(:wbsetqualifier, token_type: "csrf", claim: claim_id, snaktype: 'novalue', property: ESRB_INTERACTIVE_ELEMENTS_PID)
   else
     progress_bar.log 'Adding interactive elements qualifiers to ESRB Rating statement...'
     qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID].each do |interactive_elem|
