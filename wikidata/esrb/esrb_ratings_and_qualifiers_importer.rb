@@ -8,13 +8,15 @@ gemfile do
   gem 'mediawiki_api', require: true
   gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
   gem 'sparql-client'
+  gem 'nokogiri'
+  gem 'addressable'
   gem 'ruby-progressbar', '~> 1.10'
 end
 
 require 'json'
 require 'sparql/client'
 require 'open-uri'
-require_relative '../../wikidata_helper.rb'
+require_relative '../wikidata_helper.rb'
 include WikidataHelper
 
 # Killing the script mid-run gets caught by the rescues later in the script
@@ -214,17 +216,39 @@ esrb_dump.map! do |esrb_game|
   })
 end
 
-## TODO: Get all the Wikidata items with ESRB IDs and no ESRB Rating.
+# Get all the Wikidata items with ESRB game IDs and no ESRB Rating.
+#
+# Some of these have "unknown value" set, and I'm not sure how to get rid of them.
+# It'll have a value like this for the ESRB game ID if it's "unknown value":
+# `<http://www.wikidata.org/.well-known/genid/f8296fb7b964d7c179cb7499ba719b55>`
 def items_with_esrb_id_and_no_rating_query
   <<-SPARQL
-    
+    SELECT DISTINCT ?item ?itemLabel ?esrbId WHERE {
+      ?item wdt:P31 wd:Q7889. # Items that are an instance of video game
+      ?item wdt:P8303 ?esrbId. # with an ESRB ID
+      FILTER NOT EXISTS { ?item wdt:P852 ?esrbRating . } # with no ESRB Rating
+
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE]". }
+    }
   SPARQL
 end
 
-## TODO: Get all the Wikidata items with ESRB IDs and no qualifiers for it.
+# Get all the Wikidata items with ESRB game IDs and no qualifiers for it.
+#
+# Some of these have "unknown value" set, and I'm not sure how to get rid of them.
+# It'll have a value like this for the ESRB game ID if it's "unknown value":
+# `<http://www.wikidata.org/.well-known/genid/f8296fb7b964d7c179cb7499ba719b55>`
 def items_with_esrb_id_and_no_qualifiers_query
   <<-SPARQL
-    
+    SELECT DISTINCT ?item ?itemLabel ?esrbId WHERE {
+      OPTIONAL {
+        ?item p:P8303 ?statement. # Get the statement of the ESRB game ID
+        ?statement ps:P8303 ?esrbId. # Get the actual ESRB game ID
+        FILTER(NOT EXISTS { ?statement pq:P400 ?platform. }) # Filter out items where the ESRB game ID has platform qualifiers
+        FILTER(NOT EXISTS { ?statement pq:P1810 ?subject_stated_as. }) # Filter out items where the ESRB game ID has 'subjected stated as' qualifiers
+      }
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE]". }
+    }
   SPARQL
 end
 
@@ -248,8 +272,8 @@ def generate_rating_qualifier_snak(game, progress_bar)
       "datavalue" => {
         "value" => {
           "entity-type" => "item",
-          "numeric-id" => CONTENT_DESCRIPTORS[descriptor],
-          "id" => "Q#{CONTENT_DESCRIPTORS[descriptor]}"
+          "numeric-id" => CONTENT_DESCRIPTORS[descriptor.to_sym],
+          "id" => "Q#{CONTENT_DESCRIPTORS[descriptor.to_sym]}"
         },
         "type" => "wikibase-entityid"
       }
@@ -269,8 +293,8 @@ def generate_rating_qualifier_snak(game, progress_bar)
       "datavalue" => {
         "value" => {
           "entity-type" => "item",
-          "numeric-id" => INTERACTIVE_ELEMENTS[interactive_elem],
-          "id" => "Q#{INTERACTIVE_ELEMENTS[interactive_elem]}"
+          "numeric-id" => INTERACTIVE_ELEMENTS[interactive_elem.to_sym],
+          "id" => "Q#{INTERACTIVE_ELEMENTS[interactive_elem.to_sym]}"
         },
         "type" => "wikibase-entityid"
       }
@@ -281,7 +305,7 @@ def generate_rating_qualifier_snak(game, progress_bar)
 end
 
 client = SPARQL::Client.new(
-  endpoint,
+  ENDPOINT,
   method: :get,
   headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+rubyscripts@gmail.com) Ruby 3.1" }
 )
@@ -297,17 +321,21 @@ progress_bar = ProgressBar.create(
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
+# TODO: get the intersection of esrb_dump and the items from SPARQL so the
+#       progress bar estimation is more accurate and we waste less time?
+
 # Go through each item in the ESRB dump, check if they have a rating set in
 # Wikidata, and if not, add it along with the qualifiers for the content
 # descriptors, and a reference.
 esrb_dump.each do |game|
   progress_bar.increment
+  progress_bar.log '--------------'
 
   progress_bar.log "Evaluating '#{game.title}' with ESRB ID #{game.esrb_id}."
 
-  next unless items_with_esrb_id_and_no_rating.map { |g| g['EsrbId'] }.include?(game.esrb_id)
+  next unless items_with_esrb_id_and_no_rating.map { |g| g['esrbId'].to_s.to_i }.include?(game.esrb_id)
 
-  row = items_with_esrb_id_and_no_rating.find { |g| g['EsrbId'] == game.esrb_id }.to_h
+  row = items_with_esrb_id_and_no_rating.find { |g| g['esrbId'].to_s.to_i == game.esrb_id }.to_h
 
   wikidata_id = row[:item].to_s.sub('http://www.wikidata.org/entity/', '')
 
@@ -318,7 +346,7 @@ esrb_dump.each do |game|
   end
 
   progress_bar.log "Adding ESRB Rating #{game.rating} to #{row[:itemLabel]}"
-  rating_qid = ESRB_RATINGS[game.rating]
+  rating_qid = ESRB_RATINGS[game.rating.to_sym]
 
   if rating_qid.nil?
     progress_bar.log "Rating '#{game.rating}' on ESRB ID #{game.esrb_id} is invalid."
@@ -348,14 +376,14 @@ esrb_dump.each do |game|
   # Add qualifiers to the newly-created ESRB rating claim.
   qualifier_snak = generate_rating_qualifier_snak(game, progress_bar)
 
-  if snak[CONTENT_DESCRIPTOR_PID].empty?
+  if qualifier_snak[CONTENT_DESCRIPTOR_PID].empty?
     progress_bar.log("No content descriptors declared for #{game.title}.")
   else
     progress_bar.log 'Adding content descriptor qualifiers to ESRB Rating statement...'
     wikidata_client.set_qualifier(claim_id, 'value', CONTENT_DESCRIPTOR_PID, qualifier_snak[CONTENT_DESCRIPTOR_PID])
   end
 
-  if snak[ESRB_INTERACTIVE_ELEMENTS_PID].empty?
+  if qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID].empty?
     progress_bar.log("No interactive elements declared for #{game.title}.")
   else
     progress_bar.log 'Adding interactive elements qualifiers to ESRB Rating statement...'
