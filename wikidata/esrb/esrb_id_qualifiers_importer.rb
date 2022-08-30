@@ -261,7 +261,7 @@ items_with_esrb_id_and_no_qualifiers.each do |item|
   end
 
   # To avoid hitting the API rate limit.
-  sleep 2
+  sleep 1
 end
 
 progress_bar.finish unless progress_bar.finished?
