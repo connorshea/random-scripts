@@ -64,7 +64,8 @@ switch_title_dump.each do |switch_title|
 
     switch_titles_with_eshop_ids << {
       switch_title_id: switch_title['external_id'],
-      eshop_id: eshop_id
+      eshop_id: eshop_id,
+      name: switch_title['name']
     }
   else
     progress_bar.log("#{switch_title['external_id']} did not result in a successful redirect. Skipping...")
