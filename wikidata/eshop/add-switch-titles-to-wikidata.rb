@@ -77,6 +77,8 @@ items_with_eshop_id_and_no_switch_title_id = client.query(items_with_eshop_id_an
 wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
 wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
 
+items_with_eshop_id_and_no_switch_title_id = items_with_eshop_id_and_no_switch_title_id.filter { |item| item.to_h[:eshopId].to_s.end_with?('switch') }
+
 progress_bar = ProgressBar.create(
   total: items_with_eshop_id_and_no_switch_title_id.count,
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
@@ -90,13 +92,6 @@ items_with_eshop_id_and_no_switch_title_id.each do |item|
   progress_bar.log '----------------'
 
   item_eshop_id = item.to_h[:eshopId].to_s
-
-  # Skip non-Switch games.
-  unless item_eshop_id.end_with?('switch')
-    progress_bar.log "SKIP: eShop ID '#{item_eshop_id}' does not end with 'switch'."
-    progress_bar.increment
-    next
-  end
 
   # If the eShop ID cannot be found in the list 
   unless eshop_ids_in_switch_titles_dump.include?(item_eshop_id)
