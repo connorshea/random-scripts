@@ -142,7 +142,7 @@ def get_wikidata_items_with_no_vglist_id_from_sparql
   return rows
 end
 
-if ENV['USE_VGLIST_API']
+if ENV['USE_VGLIST_API'] == 'true'
   puts "Using the vglist API to get all the games on the site."
 
   vglist_games = []
