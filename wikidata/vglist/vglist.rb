@@ -236,7 +236,8 @@ vglist_games.each do |game|
       claim = wikidata_client.create_claim("Q#{wikidata_item_for_current_game[:wikidata_id]}", "value", "P8351", "\"#{game['id']}\"")
       progress_bar.log "SUCCESS: Updated Q#{wikidata_item_for_current_game[:wikidata_id]} with vglist ID of #{game['id']}."
     rescue MediawikiApi::ApiError => e
-      progress_bar.log e
+      # Print the game ID and Wikidata ID.
+      progress_bar.log "Q#{wikidata_item_for_current_game[:wikidata_id]}, with vglist id #{game['id']} | ERROR: #{e}"
     end
     # sleep 1
   else
