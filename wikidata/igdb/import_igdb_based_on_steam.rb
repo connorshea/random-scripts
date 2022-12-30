@@ -223,7 +223,7 @@ igdb_games.each do |igdb_game|
   # Check for an existing IGDB claim on the Wikidata item.
   existing_claims = WikidataHelper.get_claims(entity: matching_wikidata_item[:wikidata_id], property: IGDB_PROPERTY)
   if existing_claims != {} && !existing_claims.nil?
-    progress_bar.log "SKIP: This item already has a vglist ID."
+    progress_bar.log "SKIP: This item already has an IGDB ID."
     progress_bar.increment
     next
   end
