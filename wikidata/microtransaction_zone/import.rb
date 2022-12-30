@@ -35,6 +35,13 @@ include WikidataHelper
 trap("SIGINT") { exit! }
 
 MT_ZONE_PROPERTY = 'P11400'.freeze
+GIANT_BOMB_ID = 'P5247'.freeze
+
+REFERENCE_PROPERTIES = {
+  stated_in: 'P248',
+  retreived: 'P813',
+  reference_url: 'P854'
+}.freeze
 
 # Returns a list of Wikidata items with a GiantBomb ID and no microtransaction.zone ID.
 def query
@@ -122,9 +129,64 @@ rows.each_with_index do |row, index|
   # Create the Microtransaction Zone ID statement, and catch an error if it occurs.
   begin
     # NOTE: we may want/be able to just pass this as an integer, no quotation marks.
-    wikidata_client.create_claim(item, "value", MT_ZONE_PROPERTY, "\"#{mt_zone_id}\"")
+    claim = wikidata_client.create_claim(item, "value", MT_ZONE_PROPERTY, "\"#{mt_zone_id}\"")
   rescue => error
     progress_bar.log "ERROR: #{error}"
+  end
+
+  # Add references to statement
+  reference_snak = {
+    REFERENCE_PROPERTIES[:stated_in] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:stated_in],
+        "datatype" => "wikibase-item",
+        "datavalue" => {
+          "value" => {
+            "entity-type" => "item",
+            "numeric-id" => 1657282,
+            "id" => "Q1657282"
+          },
+          "type" => "wikibase-entityid"
+        }
+      }
+    ],
+    GIANT_BOMB_ID => [
+      {
+        "snaktype" => "value",
+        "property" => GIANT_BOMB_ID,
+        "datavalue": {
+          "value": giant_bomb_id,
+          "type": "string"
+        },
+        "datatype": "external-id"
+      }
+    ],
+    REFERENCE_PROPERTIES[:retreived] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:retreived],
+        "datatype" => "time",
+        "datavalue" => {
+          "value" => {
+            "time" => Date.today.strftime("+%Y-%m-%dT%H:%M:%SZ"),
+            "timezone" => 0,
+            "before" => 0,
+            "after" => 0,
+            "precision" => 11,
+            "calendarmodel" => "http://www.wikidata.org/entity/Q1985727"
+          },
+          "type" => "time"
+        }
+      }
+    ]
+  }
+
+  progress_bar.log 'Adding reference to statement...'
+  begin
+    wikidata_client.set_reference(claim.data.dig('claim', 'id'), reference_snak.to_json)
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
   end
 
   # Sleep for 2 seconds between edits to make sure we don't hit the Wikidata
