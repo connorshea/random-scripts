@@ -1,4 +1,15 @@
 # frozen_string_literal: true
+
+#####
+# Get PCGamingWiki IDs and import them into Wikidata based on the associated
+# Steam ID.
+#
+# ENVIRONMENT VARIABLES:
+#
+# WIKIDATA_USERNAME: username for Wikidata account
+# WIKIDATA_PASSWORD: password for Wikidata account
+#####
+
 require 'bundler/inline'
 
 gemfile do
