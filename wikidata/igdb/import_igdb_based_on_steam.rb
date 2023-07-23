@@ -129,6 +129,13 @@ def steam_id_from_url(url)
 end
 
 IGDB_PROPERTY = 'P5794'
+STEAM_QID = 337535
+
+REFERENCE_PROPERTIES = {
+  matched_by_identifier_from: 'P11797',
+  retreived: 'P813',
+  steam_app_id: 'P1733'
+}
 
 igdb_games = JSON.load(File.open(File.join(File.dirname(__FILE__), 'igdb_games.json'))).map do |game|
   game.transform_keys(&:to_sym)
@@ -232,7 +239,63 @@ igdb_games.each do |igdb_game|
   sleep 1
 
   # Add the IGDB ID to the relevant Wikidata item.
-  client.create_claim("Q#{matching_wikidata_item[:wikidata_id]}", "value", IGDB_PROPERTY, "\"#{igdb_game[:slug]}\"")
+  claim = client.create_claim("Q#{matching_wikidata_item[:wikidata_id]}", "value", IGDB_PROPERTY, "\"#{igdb_game[:slug]}\"")
+  claim_id = claim.data.dig('claim', 'id')
+
+  snak = {
+    REFERENCE_PROPERTIES[:matched_by_identifier_from] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:matched_by_identifier_from],
+        "datatype" => "wikibase-item",
+        "datavalue" => {
+          "value" => {
+            "entity-type" => "item",
+            "numeric-id" => STEAM_QID,
+            "id" => "Q#{STEAM_QID}"
+          },
+          "type" => "wikibase-entityid"
+        }
+      }
+    ],
+    REFERENCE_PROPERTIES[:steam_app_id] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:steam_app_id],
+        "datatype" => "external-id",
+        "datavalue" => {
+          "value" => matching_wikidata_item[:steam_app_id].to_s,
+          "type" => "string"
+        }
+      }
+    ],
+    REFERENCE_PROPERTIES[:retreived] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:retreived],
+        "datatype" => "time",
+        "datavalue" => {
+          "value" => {
+            "time" => Date.today.strftime("+%Y-%m-%dT%H:%M:%SZ"),
+            "timezone" => 0,
+            "before" => 0,
+            "after" => 0,
+            "precision" => 11,
+            "calendarmodel" => "http://www.wikidata.org/entity/Q1985727"
+          },
+          "type" => "time"
+        }
+      }
+    ]
+  }
+
+  progress_bar.log 'Adding reference to statement...'
+  begin
+    wikidata_client.set_reference(claim_id, snak.to_json)
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
+  end
+
   # Add the ID to the array of Wikidata IDs we've edited.
   edited_wikidata_ids << matching_wikidata_item[:wikidata_id]
 
