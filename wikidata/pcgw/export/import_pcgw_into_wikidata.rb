@@ -91,6 +91,14 @@ def verify_pcgw_url(pcgw_id)
   end
 end
 
+STEAM_QID = 337535
+
+REFERENCE_PROPERTIES = {
+  matched_by_identifier_from: 'P11797',
+  retreived: 'P813',
+  steam_app_id: 'P1733'
+}
+
 client = SPARQL::Client.new(
   endpoint,
   method: :get,
@@ -153,7 +161,62 @@ rows.each do |row|
     next
   end
 
-  wikidata_client.create_claim(wikidata_id, "value", "P6337", "\"#{pcgw_id}\"")
+  claim = wikidata_client.create_claim(wikidata_id, "value", "P6337", "\"#{pcgw_id}\"")
+  claim_id = claim.data.dig('claim', 'id')
+
+  snak = {
+    REFERENCE_PROPERTIES[:matched_by_identifier_from] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:matched_by_identifier_from],
+        "datatype" => "wikibase-item",
+        "datavalue" => {
+          "value" => {
+            "entity-type" => "item",
+            "numeric-id" => STEAM_QID,
+            "id" => "Q#{STEAM_QID}"
+          },
+          "type" => "wikibase-entityid"
+        }
+      }
+    ],
+    REFERENCE_PROPERTIES[:steam_app_id] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:steam_app_id],
+        "datatype" => "external-id",
+        "datavalue" => {
+          "value" => steam_app_id,
+          "type" => "string"
+        }
+      }
+    ],
+    REFERENCE_PROPERTIES[:retreived] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:retreived],
+        "datatype" => "time",
+        "datavalue" => {
+          "value" => {
+            "time" => Date.today.strftime("+%Y-%m-%dT%H:%M:%SZ"),
+            "timezone" => 0,
+            "before" => 0,
+            "after" => 0,
+            "precision" => 11,
+            "calendarmodel" => "http://www.wikidata.org/entity/Q1985727"
+          },
+          "type" => "time"
+        }
+      }
+    ]
+  }
+
+  progress_bar.log 'Adding reference to statement...'
+  begin
+    wikidata_client.set_reference(claim_id, snak.to_json)
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
+  end
 
   successful_pcgw_id_additions += 1
 
