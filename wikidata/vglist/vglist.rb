@@ -90,7 +90,7 @@ def query
   return sparql
 end
 
-if ENV['USE_VGLIST_API']
+if ENV['USE_VGLIST_API'] == 'true'
   module VGListGraphQL
     HTTP = GraphQL::Client::HTTP.new("https://vglist.co/graphql") do
       def headers(context)
