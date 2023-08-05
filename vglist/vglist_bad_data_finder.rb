@@ -96,15 +96,22 @@ vglist_wikidata_ids = vglist_games.map { |g| g['wikidata_id'] }
 
 puts "#{vglist_wikidata_ids.difference(wikidata_ids).count} games in vglist that aren't in Wikidata."
 
+json = []
+
 vglist_wikidata_ids.difference(wikidata_ids).each do |wikidata_id|
-  puts
-  puts "https://www.wikidata.org/wiki/Q#{wikidata_id}"
-  puts "https://vglist.co/games/#{vglist_games.find { |g| g['wikidata_id'] == wikidata_id }['id']}"
-  if item_is_deleted?("Q#{wikidata_id}")
-    puts "Item was deleted."
-  end
+  puts "Checking Q#{wikidata_id}"
+  curr = {
+    wikidata_url: "https://www.wikidata.org/wiki/Q#{wikidata_id}",
+    vglist_url: "https://vglist.co/games/#{vglist_games.find { |g| g['wikidata_id'] == wikidata_id }['id']}",
+    status: nil
+  }
   if item_is_redirected?("Q#{wikidata_id}")
-    puts "Item was redirected."
+    curr[:status] = :redirected
+  elsif item_is_deleted?("Q#{wikidata_id}")
+    curr[:status] = :deleted
   end
-  sleep 1
+  json << curr
+  sleep 0.25
 end
+
+puts JSON.pretty_generate(json)
