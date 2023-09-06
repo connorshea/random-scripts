@@ -193,7 +193,7 @@ igdb_games.shuffle.each do |igdb_game|
     next
   end
 
-  if steam_json.dig(steam_app_id.to_s, 'data', 'release_date', 'is_free') == true
+  if steam_json.dig(steam_app_id.to_s, 'data', 'is_free') == true
     progress_bar.log 'Skipping because game is free'
     next
   end
