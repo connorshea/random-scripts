@@ -49,7 +49,7 @@ end
 
 def igdb_games_body(offset = 0)
   <<~APICALYPSE
-    fields category,first_release_date,name,platforms.name,involved_companies.company.name,slug,status,url,websites.category,websites.url,external_games.category,external_games.url;
+    fields category,first_release_date,name,platforms.name,involved_companies.company.name,slug,status,url,websites.category,websites.url,external_games.category,external_games.url,external_games.uid,status;
     where category = 0;
     sort slug asc;
     limit 500;
