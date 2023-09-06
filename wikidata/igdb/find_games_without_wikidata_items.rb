@@ -125,7 +125,6 @@ igdb_games = JSON.parse(File.read('./igdb_games.json'))
 # - It's not a main game
 # - There's no release date set
 # - The game status is early access
-# - The game is free
 # - The game has no Steam IDs.
 #
 # These are fairly arbitrary, but it's mostly about ensuring relatively high
@@ -135,7 +134,6 @@ igdb_games.reject! { |game| game['status'] == 4 }
 igdb_games.reject! { |game| game['first_release_date'].nil? }
 igdb_games.reject! { |game| game['external_games'].empty? }
 igdb_games.reject! { |game| game['category'] != 0 }
-igdb_games.reject! { |game| game['is_free'] == true }
 igdb_games.reject! do |game|
   game['external_games'].select { |external_game| external_game['category'] == 1 }.map do |external_game|
     external_game['url']&.match(/https:\/\/store\.steampowered\.com\/app\/(\d+)/)&.captures&.first
@@ -178,7 +176,7 @@ igdb_games.shuffle.each do |igdb_game|
   steam_json = get_details_from_steam(steam_ids_for_game.first)
 
   # Sleep to avoid being rate limited by Steam.
-  sleep 0.5
+  sleep 1
 
   if steam_json.nil?
     progress_bar.log 'Skipping because Steam API call failed'
@@ -192,6 +190,11 @@ igdb_games.shuffle.each do |igdb_game|
 
   if steam_json.dig(steam_app_id.to_s, 'data', 'release_date', 'coming_soon') == true
     progress_bar.log 'Skipping because game is unreleased'
+    next
+  end
+
+  if steam_json.dig(steam_app_id.to_s, 'data', 'release_date', 'is_free') == true
+    progress_bar.log 'Skipping because game is free'
     next
   end
 
@@ -215,8 +218,8 @@ igdb_games.shuffle.each do |igdb_game|
   progress_bar.log "Adding Steam ID #{steam_app_id} to list of games to import..."
   steam_ids_to_import << steam_app_id
 
-  # Print the full list every 100 entries.
-  if steam_ids_to_import.count % 100 == 0
+  # Print the full list every 50 entries.
+  if steam_ids_to_import.count % 50 == 0
     progress_bar.log 'Current list of Steam IDs to import:'
     progress_bar.log steam_ids_to_import
   end
