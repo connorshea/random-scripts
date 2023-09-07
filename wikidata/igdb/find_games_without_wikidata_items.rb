@@ -114,6 +114,15 @@ def get_details_from_steam(app_id)
   JSON.parse(response.body)
 end
 
+def add_to_steam_exclusions_list(app_id)
+  File.open('./steam_exclusions_list.txt', 'a') do |file|
+    file.puts("#{app_id}")
+  end
+end
+
+# Create 'steam_exclusions_list.txt' if it doesn't exist
+File.open('./steam_exclusions_list.txt', 'w') unless File.exist?('./steam_exclusions_list.txt')
+
 puts 'Querying Wikidata...'
 igdb_ids_from_wikidata = igdb_rows.map { |row| row.dig(:igdb_id) }
 steam_ids_from_wikidata = steam_rows.map { |row| row.dig(:steam_app_id) }
@@ -134,13 +143,27 @@ igdb_games.reject! { |game| game['status'] == 4 }
 igdb_games.reject! { |game| game['first_release_date'].nil? }
 igdb_games.reject! { |game| game['external_games'].empty? }
 igdb_games.reject! { |game| game['category'] != 0 }
-igdb_games.reject! do |game|
-  game['external_games'].select { |external_game| external_game['category'] == 1 }.map do |external_game|
+# Store the Steam IDs on the item so we don't have to keep re-calculating it.
+igdb_games.each do |game|
+  game['steam_ids'] = game['external_games'].select { |external_game| external_game['category'] == 1 }.map do |external_game|
     external_game['url']&.match(/https:\/\/store\.steampowered\.com\/app\/(\d+)/)&.captures&.first
-  end.compact.empty?
+  end.compact
+end
+puts 'Filtering out games with no Steam ID or more than one Steam ID...'
+igdb_games.reject! do |game|
+  game['steam_ids'].count != 1
 end
 
 steam_ids_to_import = []
+
+steam_exclusions_list = File.readlines('./steam_exclusions_list.txt').map(&:chomp).map(&:strip).uniq
+
+puts 'Filtering out games that have IGDB IDs already on Wikidata...'
+# Remove any games that are already on Wikidata.
+igdb_games.reject! { |game| igdb_ids_from_wikidata.include?(game['slug']) }
+
+puts 'Filtering out games that are on the Steam exclusion list...'
+igdb_games.reject! { |game| steam_exclusions_list.include?(game['steam_ids'].first) }
 
 progress_bar = ProgressBar.create(
   total: igdb_games.count,
@@ -152,28 +175,8 @@ igdb_games.shuffle.each do |igdb_game|
   progress_bar.log 'Checking IGDB game...'
   progress_bar.increment
 
-  # Skip if the IGDB ID for this game is already on Wikidata.
-  if igdb_ids_from_wikidata.include?(igdb_game['slug'])
-    progress_bar.log 'Skipping because IGDB ID is already on Wikidata'
-    next
-  end
-
-  # Get Steam IDs for games
-  steam_ids_for_game = igdb_game['external_games'].select { |external_game| external_game['category'] == 1 }.map { |external_game| external_game['url']&.match(/https:\/\/store\.steampowered\.com\/app\/(\d+)/)&.captures&.first }.compact
-  # Skip if there's more than one Steam ID for this game, or if there is no Steam ID for the game.
-  if steam_ids_for_game.length != 1
-    progress_bar.log 'Skipping because no Steam ID or too many Steam IDs'
-    next
-  end
-
-  steam_app_id = steam_ids_for_game.first
-  # Skip if the Steam ID for this game is already on Wikidata.
-  if steam_ids_from_wikidata.include?(steam_app_id.to_i)
-    progress_bar.log 'Skipping because Steam ID is already on Wikidata'
-    next
-  end
-
-  steam_json = get_details_from_steam(steam_ids_for_game.first)
+  steam_app_id = igdb_game['steam_ids'].first
+  steam_json = get_details_from_steam(steam_app_id)
 
   # Sleep to avoid being rate limited by Steam.
   sleep 2
@@ -184,27 +187,32 @@ igdb_games.shuffle.each do |igdb_game|
   end
 
   if steam_json.dig(steam_app_id.to_s, 'success') == false
+    add_to_steam_exclusions_list(steam_app_id)
     progress_bar.log 'Skipping because Steam API call failed'
     next
   end
 
   if steam_json.dig(steam_app_id.to_s, 'data', 'release_date', 'coming_soon') == true
+    add_to_steam_exclusions_list(steam_app_id)
     progress_bar.log 'Skipping because game is unreleased'
     next
   end
 
   if steam_json.dig(steam_app_id.to_s, 'data', 'genres')&.map { |genre| genre['description'] }&.include?('Early Access')
+    add_to_steam_exclusions_list(steam_app_id)
     progress_bar.log 'Skipping because game is early access'
     next
   end
   
   if steam_json.dig(steam_app_id.to_s, 'data', 'type') == 'dlc'
+    add_to_steam_exclusions_list(steam_app_id)
     progress_bar.log 'Skipping because this is a DLC'
     next
   end
 
   supported_languages = steam_json.dig(steam_app_id.to_s, 'data', 'supported_languages')&.split(',') || []
   unless supported_languages.include?('English')
+    add_to_steam_exclusions_list(steam_app_id)
     progress_bar.log 'Skipping because game has no English support'
     next
   end
