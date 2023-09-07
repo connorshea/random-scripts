@@ -210,10 +210,10 @@ igdb_games.shuffle.each do |igdb_game|
     next
   end
 
-  supported_languages = steam_json.dig(steam_app_id.to_s, 'data', 'supported_languages')&.split(',') || []
+  supported_languages = steam_json.dig(steam_app_id.to_s, 'data', 'supported_languages')
   unless supported_languages.include?('English')
     add_to_steam_exclusions_list(steam_app_id)
-    progress_bar.log 'Skipping because game has no English support'
+    progress_bar.log "Skipping #{steam_app_id} because game has no English support"
     next
   end
 
