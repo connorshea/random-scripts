@@ -176,7 +176,7 @@ igdb_games.shuffle.each do |igdb_game|
   steam_json = get_details_from_steam(steam_ids_for_game.first)
 
   # Sleep to avoid being rate limited by Steam.
-  sleep 1
+  sleep 2
 
   if steam_json.nil?
     progress_bar.log 'Skipping because Steam API call failed'
@@ -193,11 +193,6 @@ igdb_games.shuffle.each do |igdb_game|
     next
   end
 
-  if steam_json.dig(steam_app_id.to_s, 'data', 'is_free') == true
-    progress_bar.log 'Skipping because game is free'
-    next
-  end
-
   if steam_json.dig(steam_app_id.to_s, 'data', 'genres')&.map { |genre| genre['description'] }&.include?('Early Access')
     progress_bar.log 'Skipping because game is early access'
     next
@@ -209,17 +204,11 @@ igdb_games.shuffle.each do |igdb_game|
     next
   end
 
-  # Importing these will take way too long right now, so skip them.
-  if supported_languages.count > 6
-    progress_bar.log 'Skipping because game supports too many languages'
-    next
-  end
-
   progress_bar.log "Adding Steam ID #{steam_app_id} to list of games to import..."
   steam_ids_to_import << steam_app_id
 
-  # Print the full list every 50 entries.
-  if steam_ids_to_import.count % 50 == 0
+  # Print the full list every 25 entries.
+  if steam_ids_to_import.count % 25 == 0
     progress_bar.log 'Current list of Steam IDs to import:'
     progress_bar.log steam_ids_to_import
   end
