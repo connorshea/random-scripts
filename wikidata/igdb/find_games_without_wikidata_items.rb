@@ -197,6 +197,11 @@ igdb_games.shuffle.each do |igdb_game|
     progress_bar.log 'Skipping because game is early access'
     next
   end
+  
+  if steam_json.dig(steam_app_id.to_s, 'data', 'type') == 'dlc'
+    progress_bar.log 'Skipping because this is a DLC'
+    next
+  end
 
   supported_languages = steam_json.dig(steam_app_id.to_s, 'data', 'supported_languages')&.split(',') || []
   unless supported_languages.include?('English')
