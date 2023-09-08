@@ -170,6 +170,8 @@ progress_bar = ProgressBar.create(
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
+GAME_TITLE_REGEX = /^[A-Za-zĀ-ſ0-9\s,.?!\-+*\/=_–—:;~\'’"„“«»\(\)\[\]&]+$/.freeze
+
 # Shuffle the games so we don't pointlessly re-check the same games at the start every time
 igdb_games.shuffle.each do |igdb_game|
   progress_bar.log 'Checking IGDB game...'
@@ -211,9 +213,15 @@ igdb_games.shuffle.each do |igdb_game|
   end
 
   supported_languages = steam_json.dig(steam_app_id.to_s, 'data', 'supported_languages')
-  unless supported_languages.include?('English')
+  unless supported_languages&.include?('English')
     add_to_steam_exclusions_list(steam_app_id)
     progress_bar.log "Skipping #{steam_app_id} because game has no English support"
+    next
+  end
+
+  unless steam_json.dig(steam_app_id.to_s, 'data', 'name')&.match?(GAME_TITLE_REGEX)
+    add_to_steam_exclusions_list(steam_app_id)
+    progress_bar.log "Skipping #{steam_app_id} because game has non-English characters in title"
     next
   end
 
