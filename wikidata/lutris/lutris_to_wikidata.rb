@@ -1,4 +1,15 @@
 # frozen_string_literal: true
+
+##
+# USAGE:
+#
+# This script creates a lutris_games.json and then adds Lutris IDs to Wikidata.
+#
+# ENVIRONMENT VARIABLES:
+#
+# WIKIDATA_USERNAME: username for Wikidata account
+# WIKIDATA_PASSWORD: password for Wikidata account
+
 require 'bundler/inline'
 
 gemfile do
