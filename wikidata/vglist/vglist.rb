@@ -204,7 +204,7 @@ wikidata_ids_intersection = (vglist_games.map { |g| g['wikidata_id'].to_s } & wi
 puts "#{wikidata_ids_intersection.count} games can be matched based on Wikidata IDs."
 
 progress_bar = ProgressBar.create(
-  total: vglist_games.count,
+  total: wikidata_ids_intersection.count,
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
@@ -212,9 +212,8 @@ games_that_can_be_matched = 0
 games_that_have_different_names = 0
 
 vglist_games.each do |game|
-  # Check if the Wikidata ID is represented, and skip if it isn't.
+  # Check if the Wikidata ID is represented, and skip if it isn't. Intentionally skip incrementing in this case.
   if !wikidata_ids_intersection.include?(game['wikidata_id'].to_s)
-    progress_bar.increment
     next
   end
 
