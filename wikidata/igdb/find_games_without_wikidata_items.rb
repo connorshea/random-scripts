@@ -139,7 +139,6 @@ igdb_games = JSON.parse(File.read('./igdb_games.json'))
 # These are fairly arbitrary, but it's mostly about ensuring relatively high
 # quality for the games being imported.
 puts 'Filtering out various games...'
-igdb_games.reject! { |game| game['status'] == 4 }
 igdb_games.reject! { |game| game['first_release_date'].nil? }
 igdb_games.reject! { |game| game['external_games'].empty? }
 igdb_games.reject! { |game| game['category'] != 0 }
@@ -200,12 +199,6 @@ igdb_games.shuffle.each do |igdb_game|
     next
   end
 
-  if steam_json.dig(steam_app_id.to_s, 'data', 'genres')&.map { |genre| genre['description'] }&.include?('Early Access')
-    add_to_steam_exclusions_list(steam_app_id)
-    progress_bar.log 'Skipping because game is early access'
-    next
-  end
-  
   if steam_json.dig(steam_app_id.to_s, 'data', 'type') == 'dlc'
     add_to_steam_exclusions_list(steam_app_id)
     progress_bar.log 'Skipping because this is a DLC'
@@ -232,6 +225,9 @@ igdb_games.shuffle.each do |igdb_game|
   if steam_ids_to_import.count % 25 == 0
     progress_bar.log 'Current list of Steam IDs to import:'
     progress_bar.log steam_ids_to_import
+    steam_ids_to_import.last(25).each do |id|
+      add_to_steam_exclusions_list(id)
+    end
   end
 end
 
