@@ -53,7 +53,7 @@ def find_wikidata_item_by_steam_app_id(app_id)
   client = SPARQL::Client.new(
     "https://query.wikidata.org/sparql",
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 2.6" }
   )
   sparql = query(app_id)
   begin
@@ -98,7 +98,7 @@ def get_items
   client = SPARQL::Client.new(
     "https://query.wikidata.org/sparql",
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 2.6" }
   )
   sparql = items_with_steam_and_no_pcgw_query()
 

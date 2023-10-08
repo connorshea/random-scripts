@@ -51,7 +51,7 @@ end
 client = SPARQL::Client.new(
   endpoint,
   method: :get,
-  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 3.1" }
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
 )
 
 rows = client.query(query)

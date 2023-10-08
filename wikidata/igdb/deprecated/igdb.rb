@@ -171,7 +171,7 @@ def import_igdb_ids_into_wikidata
   sparql_client = SPARQL::Client.new(
     "https://query.wikidata.org/sparql",
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 2.6" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 2.6" }
   )
 
   # Get the response from the Wikidata query.

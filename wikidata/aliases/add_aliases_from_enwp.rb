@@ -59,7 +59,7 @@ end
 sparql_client = SPARQL::Client.new(
   "https://query.wikidata.org/sparql",
   method: :get,
-  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea@gmail.com) Ruby 3.1" }
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
 )
 
 rows = sparql_client.query(query)
