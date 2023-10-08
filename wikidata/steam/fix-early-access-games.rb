@@ -119,7 +119,7 @@ rows.each_with_index do |row, index|
 
   # Parse the JSON response to get the game's 'genres', which includes whether the game is early access.
   response = JSON.parse(response.body)
-  genres = response&.dig(response&.keys&.first, 'data', 'genres').map { |g| g['description'] }
+  genres = response&.dig(response&.keys&.first, 'data', 'genres')&.map { |g| g['description'] }
 
   # If genres is nil, that means there was no genres data in the response
   # from Steam, which suggests the Steam App ID was wrong, Steam has
