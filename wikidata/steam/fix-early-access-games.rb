@@ -132,6 +132,8 @@ rows.each_with_index do |row, index|
     progress_bar.log "Steam request failed for #{name}."
     progress_bar.log steam_url
     progress_bar.log ''
+    # This may mean we hit the rate limit, so we should sleep.
+    sleep 5
     next
   end
 
