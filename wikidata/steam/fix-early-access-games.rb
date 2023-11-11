@@ -100,11 +100,14 @@ rows.each_with_index do |row, index|
     next
   end
 
-  # TODO: Skip if there's more than one publication date on the item, we can't really handle that right now.
+  # Skip if there's more than one publication date on the item, we can't really handle that right now.
   if existing_claims['P577'].count > 1
     progress_bar.log 'The item has more than one publication date.'
     next
   end
+
+  # Sleep to avoid Steam rate limits
+  sleep 1
 
   # Get the Steam AppID
   steam_appid = row[:steamAppId]
