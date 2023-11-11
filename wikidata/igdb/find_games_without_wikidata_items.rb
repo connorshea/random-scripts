@@ -157,9 +157,11 @@ steam_ids_to_import = []
 
 steam_exclusions_list = File.readlines('./steam_exclusions_list.txt').map(&:chomp).map(&:strip).uniq
 
-puts 'Filtering out games that have IGDB IDs already on Wikidata...'
 # Remove any games that are already on Wikidata.
+puts 'Filtering out games that have IGDB IDs already on Wikidata...'
 igdb_games.reject! { |game| igdb_ids_from_wikidata.include?(game['slug']) }
+puts 'Filtering out games that have Steam IDs already on Wikidata...'
+igdb_games.reject! { |game| steam_ids_from_wikidata.include?(game['steam_ids'].first.to_i) }
 
 puts 'Filtering out games that are on the Steam exclusion list...'
 igdb_games.reject! { |game| steam_exclusions_list.include?(game['steam_ids'].first) }
