@@ -113,7 +113,6 @@ else
   items = JSON.parse(File.read(File.join(File.dirname(__FILE__), 'items.json')))
 end
 
-
 # Filter out items with no English label (they'll just return the QID as the label)
 items.filter! do |item|
   !(item['name'] =~ /Q\d+/i)
@@ -152,14 +151,51 @@ progress_bar.finish unless progress_bar.finished?
 
 qids_to_check = File.read(File.join(File.dirname(__FILE__), 'qids.txt')).split("\n")
 
-# Print out the results.
-dupes.each do |dupe|
-  [dupe[:dupe][:wikidata_id], dupe[:item][:wikidata_id]].each do |id|
-    if qids_to_check.include?(id)
-      puts "----------------"
-      puts "Potential duplicate:"
-      puts "- https://www.wikidata.org/wiki/#{dupe[:dupe][:wikidata_id]}: #{dupe[:dupe][:name]}"
-      puts "- https://www.wikidata.org/wiki/#{dupe[:item][:wikidata_id]}: #{dupe[:item][:name]}"
+# De-dupe the dupes.
+dupes.uniq! { |dupe| "#{dupe[:dupe][:wikidata_id]}#{dupe[:item][:wikidata_id]}" }
+
+# Filter out dupes where the QID of both items are not in the list of QIDs to check.
+dupes.filter! do |dupe|
+  [dupe[:dupe][:wikidata_id], dupe[:item][:wikidata_id]].any? do |id|
+    qids_to_check.include?(id)
+  end
+end
+
+wikidatum_client = Wikidatum::Client.new(
+  user_agent: "Connor's Random Ruby Scripts Data Fetcher/1.0",
+  wikibase_url: 'https://www.wikidata.org',
+  bot: false
+)
+
+dupes_progress_bar = ProgressBar.create(
+  total: dupes.count,
+  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+)
+
+# Filter out any dupes where there's a `different from` statement on either item.
+dupes.filter! do |dupe|
+  sleep 1
+  dupes_progress_bar.increment
+
+  item1 = wikidatum_client.item(id: dupe[:dupe][:wikidata_id])
+  if item1.statements(properties: ['P1889']).any?
+    false
+  else
+    item2 = wikidatum_client.item(id: dupe[:item][:wikidata_id])
+    if item2.statements(properties: ['P1889']).any?
+      false
+    else
+      true
     end
   end
+end
+
+dupes_progress_bar.finish unless dupes_progress_bar.finished?
+
+# Print out the results.
+dupes.each do |dupe|
+  puts "----------------"
+  puts "Potential duplicate:"
+  puts "- https://www.wikidata.org/wiki/#{dupe[:dupe][:wikidata_id]}: #{dupe[:dupe][:name]}"
+  puts "- https://www.wikidata.org/wiki/#{dupe[:item][:wikidata_id]}: #{dupe[:item][:name]}"
 end
