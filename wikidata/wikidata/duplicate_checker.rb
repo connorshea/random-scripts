@@ -172,17 +172,24 @@ dupes_progress_bar = ProgressBar.create(
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
 )
 
+# Get the items for each of the dupes.
+dupes.map! do |dupe|
+  dupes_progress_bar.increment
+  sleep 1
+
+  dupe[:dupe][:wikidatum_item] = wikidatum_client.item(id: dupe[:dupe][:wikidata_id])
+  dupe[:item][:wikidatum_item] = wikidatum_client.item(id: dupe[:item][:wikidata_id])
+  dupe
+end
+
+dupes_progress_bar.finish unless dupes_progress_bar.finished?
+
 # Filter out any dupes where there's a `different from` statement on either item.
 dupes.filter! do |dupe|
-  sleep 1
-  dupes_progress_bar.increment
-
-  item1 = wikidatum_client.item(id: dupe[:dupe][:wikidata_id])
-  if item1.statements(properties: ['P1889']).any?
+  if dupe[:dupe][:wikidatum_item].statements(properties: ['P1889']).any?
     false
   else
-    item2 = wikidatum_client.item(id: dupe[:item][:wikidata_id])
-    if item2.statements(properties: ['P1889']).any?
+    if dupe[:item][:wikidatum_item].statements(properties: ['P1889']).any?
       false
     else
       true
@@ -190,12 +197,51 @@ dupes.filter! do |dupe|
   end
 end
 
-dupes_progress_bar.finish unless dupes_progress_bar.finished?
+STEAM_ID_PROPERTY = 'P1733'
+MICROSOFT_STORE_ID_PROPERTY = 'P5885'
+NINTENDO_ESHOP_ID_PROPERTY = 'P8084'
+
+dupes.map! do |dupe|
+  dupe[:dupe][:properties] = {
+    steam: dupe[:dupe][:wikidatum_item].statements(properties: [STEAM_ID_PROPERTY]).any?,
+    microsoft_store: dupe[:dupe][:wikidatum_item].statements(properties: [MICROSOFT_STORE_ID_PROPERTY]).any?,
+    nintendo_eshop: dupe[:dupe][:wikidatum_item].statements(properties: [NINTENDO_ESHOP_ID_PROPERTY]).any?
+  }
+  dupe[:item][:properties] = {
+    steam: dupe[:item][:wikidatum_item].statements(properties: [STEAM_ID_PROPERTY]).any?,
+    microsoft_store: dupe[:item][:wikidatum_item].statements(properties: [MICROSOFT_STORE_ID_PROPERTY]).any?,
+    nintendo_eshop: dupe[:item][:wikidatum_item].statements(properties: [NINTENDO_ESHOP_ID_PROPERTY]).any?
+  }
+  dupe
+end
 
 # Print out the results.
 dupes.each do |dupe|
   puts "----------------"
   puts "Potential duplicate:"
-  puts "- https://www.wikidata.org/wiki/#{dupe[:dupe][:wikidata_id]}: #{dupe[:dupe][:name]}"
-  puts "- https://www.wikidata.org/wiki/#{dupe[:item][:wikidata_id]}: #{dupe[:item][:name]}"
+  puts
+  puts "**https://www.wikidata.org/wiki/#{dupe[:dupe][:wikidata_id]}: #{dupe[:dupe][:name]}**"
+  puts
+
+  if dupe[:dupe][:properties][:steam]
+    puts "- Steam ID"
+  end
+  if dupe[:dupe][:properties][:microsoft_store]
+    puts "- Microsoft Store ID"
+  end
+  if dupe[:dupe][:properties][:nintendo_eshop]
+    puts "- Nintendo eShop ID"
+  end
+  puts
+  puts "**https://www.wikidata.org/wiki/#{dupe[:item][:wikidata_id]}: #{dupe[:item][:name]}**"
+  puts
+  if dupe[:item][:properties][:steam]
+    puts "- Steam ID"
+  end
+  if dupe[:item][:properties][:microsoft_store]
+    puts "- Microsoft Store ID"
+  end
+  if dupe[:item][:properties][:nintendo_eshop]
+    puts "- Nintendo eShop ID"
+  end
 end
