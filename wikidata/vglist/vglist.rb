@@ -238,7 +238,7 @@ vglist_games.each do |game|
       # Print the game ID and Wikidata ID.
       progress_bar.log "Q#{wikidata_item_for_current_game[:wikidata_id]}, with vglist id #{game['id']} | ERROR: #{e}"
     end
-    # sleep 1
+    sleep 0.5
   else
     progress_bar.log "NAME MISMATCH: #{game['name']} can be matched based on its Wikidata ID, but the name on Wikidata differs from the one on vglist."
     progress_bar.log "NAME MISMATCH: (vglist ID: #{game['id']}, Wikidata name: #{wikidata_item_for_current_game[:name]}, Wikidata ID: #{wikidata_item_for_current_game[:wikidata_id]})"
