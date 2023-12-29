@@ -2,26 +2,66 @@
 
 # Given a JSON file for all IGDB games, it transforms the
 # igdb_games.json into a better format for OpenRefine to
-# consume.
-#
-# You should also get a JSON file from the Wikidata Query Service using this query:
-#
-# SELECT ?item ?igdbId WHERE {
-#  ?item wdt:P31 wd:Q7889; # instance of video game
-#  wdt:P5794 ?igdbId. # items with an IGDB ID.
-# }
-#
-# Name the file `wikidata-query.json` and place it in the same directory as this script.
+# consume. Also pulls some extra data about the GiantBomb
+# ID and such, from Wikidata.
+
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'sparql-client'
+  gem 'nokogiri'
+end
 
 require 'json'
+require 'sparql/client'
+
+# Query for finding all items with IGDB IDs.
+def igdb_query
+  return <<-SPARQL
+    SELECT ?item ?igdbId WHERE {
+      ?item wdt:P31 wd:Q7889; # instance of video game
+      wdt:P5794 ?igdbId. # items with an IGDB ID.
+    }
+  SPARQL
+end
+
+# Query for finding all items with GiantBomb IDs.
+def giantbomb_query
+  return <<-SPARQL
+    SELECT ?item ?itemLabel (SAMPLE(?gbId) as ?gbId) WHERE {
+      ?item wdt:P31 wd:Q7889; # instance of video game
+      wdt:P5247 ?gbId. # items with a GiantBomb ID.
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+    }
+    GROUP BY ?item ?itemLabel
+  SPARQL
+end
+
+def get_wikidata_items(query)
+  sparql_endpoint = "https://query.wikidata.org/sparql"
+
+  client = SPARQL::Client.new(
+    sparql_endpoint,
+    method: :get,
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
+  )
+
+  rows = client.query(query)
+
+  return rows
+end
 
 # Open igdb_games.json
 igdb_games = JSON.parse(File.read('./igdb_games.json'))
-wikidata_igdb_items = JSON.parse(File.read('./wikidata-query.json'))
+wikidata_igdb_items = get_wikidata_items(igdb_query).map(&:to_h).map { |row| { 'item' => row[:item].to_s, 'igdbId' => row[:igdbId].to_s } }
 wikidata_igdb_items.sort_by! { |item| item['igdbId'] }
+wikidata_giantbomb_items = get_wikidata_items(giantbomb_query).map(&:to_h).map { |row| { 'item' => row[:item].to_s.sub('http://www.wikidata.org/entity/', ''), 'itemLabel' => row[:itemLabel].to_s, 'gbId' => row[:gbId].to_s } }
+wikidata_giantbomb_items.sort_by! { |item| item['item'] }
 
 puts igdb_games.length
 puts wikidata_igdb_items.length
+puts wikidata_giantbomb_items.length
 
 # Remove category
 igdb_games.map! do |igdb_game|
@@ -29,10 +69,10 @@ igdb_games.map! do |igdb_game|
   igdb_game.delete('category')
   # Remove URL
   igdb_game.delete('url')
-  # Remove external_games.id
-  igdb_game['external_games'].map! { |ext_game| ext_game.delete('id'); ext_game }
-  # Remove websites.id
-  igdb_game['websites'].map! { |website| website.delete('id'); website }
+  # # Remove external_games.id
+  # igdb_game['external_games'].map! { |ext_game| ext_game.delete('id'); ext_game }
+  # # Remove websites.id
+  # igdb_game['websites'].map! { |website| website.delete('id'); website }
 
   # Remove websites of category 4 (Facebook)
   # Remove websites of category 5 (Twitter)
@@ -42,7 +82,7 @@ igdb_games.map! do |igdb_game|
   # Remove websites of category 13 (Steam), represented by external games already
   # Remove websites of category 14 (Reddit)
   # Remove websites of category 18 (Discord)
-  igdb_game['websites'].reject! { |website| [4, 5, 6, 8, 9, 13, 14, 18].include?(website['category']) }
+  # igdb_game['websites'].reject! { |website| [4, 5, 6, 8, 9, 13, 14, 18].include?(website['category']) }
 
   ext_game_categories = igdb_game['external_games'].map { |ext_game| ext_game['category'] }
   
@@ -73,7 +113,18 @@ igdb_games.map! do |igdb_game|
   # Remove Twitch from external games (category 14)
   igdb_game['external_games'].reject! { |ext_game| [1, 3, 5, 14].include?(ext_game['category']) }
 
+  # Remove all of these as they're not particularly useful for OpenRefine.
+  igdb_game.delete('external_games')
+  igdb_game.delete('websites')
+  igdb_game.delete('platforms')
+  igdb_game.delete('involved_companies')
+  igdb_game.delete('status')
+
+  # Convert first_release_date integer to an actual date
+  igdb_game['first_release_date'] = Time.at(igdb_game['first_release_date'].to_i).to_datetime.strftime('%Y-%m-%d') unless igdb_game['first_release_date'].nil?
+
   igdb_game['wikidata_id'] = nil
+  igdb_game['giantbomb_id_from_wikidata'] = nil
 
   igdb_game
 end
@@ -85,6 +136,13 @@ igdb_games.map! do |igdb_game|
   igdb_game
 end
 
-# TODO: Convert first release date to an actual date?
+igdb_games.map! do |igdb_game|
+  unless igdb_game['wikidata_id'].nil?
+    # Add GiantBomb IDs from Wikidata to records.
+    # Use a binary search because otherwise this takes forever.
+    igdb_game['giantbomb_id_from_wikidata'] = wikidata_giantbomb_items.bsearch { |item| igdb_game['wikidata_id'] <=> item['item'] }&.dig('gbId')
+  end
+  igdb_game
+end
 
 File.write('./igdb_games-transformed.json', JSON.pretty_generate({ games: igdb_games }))
