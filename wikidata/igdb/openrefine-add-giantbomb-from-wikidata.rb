@@ -77,7 +77,7 @@ end
 # Make an HTTP request to GiantBomb for each row and delete the row if the
 # request 404s or the page title is different from the name from the CSV.
 openrefine_csv.delete_if do |row|
-  sleep 1 # Avoid rate limiting/banning
+  sleep 0.5 # Avoid rate limiting/banning
   url = "https://www.giantbomb.com/wd/#{row['giantbomb_id']}/"
   puts url
   response = HTTParty.get(url)
