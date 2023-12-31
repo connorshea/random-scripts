@@ -145,7 +145,7 @@ igdb_games.reject! { |game| game['category'] != 0 }
 # Store the Steam IDs on the item so we don't have to keep re-calculating it.
 igdb_games.each do |game|
   game['steam_ids'] = game['external_games'].select { |external_game| external_game['category'] == 1 }.map do |external_game|
-    external_game['url']&.match(/https:\/\/store\.steampowered\.com\/app\/(\d+)/)&.captures&.first
+    external_game['uid']
   end.compact
 end
 puts 'Filtering out games with no Steam ID or more than one Steam ID...'
