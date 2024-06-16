@@ -126,8 +126,6 @@ items.filter! do |item|
   !(item['name'] =~ /Q\d+/i)
 end
 
-dupes = []
-
 # An array of every single video game item on Wikidata.
 items.map! do |item|
   {
