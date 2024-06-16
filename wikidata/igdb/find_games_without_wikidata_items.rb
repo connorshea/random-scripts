@@ -5,6 +5,9 @@
 #
 # This will then be piped into a script for importing new games using their
 # information from Steam.
+#
+# After running this, duplicate_filterer.rb should be run to filter out
+# potential dupes.
 ##
 
 require 'bundler/inline'
