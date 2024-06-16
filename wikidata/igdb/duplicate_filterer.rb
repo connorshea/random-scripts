@@ -3,6 +3,10 @@
 # The goal of this script is to gather the labels of all video game items on
 # Wikidata, and then check for duplicates before we run an import of games
 # into Wikidata using Steam IDs from IGDB.
+#
+# Note that the script is only currently built to handle up to 120k games,
+# if Wikidata has more than that in the future, this script will need to
+# be updated.
 
 require 'bundler/inline'
 
@@ -23,7 +27,7 @@ require_relative '../wikidata_helper.rb'
 
 include WikidataHelper
 
-# Have to limit it to 30k, otherwise the query times out. We run them all, to get up to 90k games.
+# Have to limit it to 30k, otherwise the query times out. We run them all, to get up to 120k games.
 # This is the only good way to consistently get the necessary response.
 def queries_with_labels
   query1 = <<~SPARQL
