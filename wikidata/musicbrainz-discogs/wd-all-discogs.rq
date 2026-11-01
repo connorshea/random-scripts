@@ -1,0 +1,7 @@
+# Every Discogs artist ID (P1953) already on Wikidata, at any rank. Run on QLever.
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+SELECT DISTINCT ?discogs WHERE {
+  ?item p:P1953 ?st .
+  ?st ps:P1953 ?discogs .
+}

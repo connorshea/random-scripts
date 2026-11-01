@@ -1,0 +1,8 @@
+# Albums with a Spotify album ID (P2205) but no "distribution format: music streaming" (P437 = Q15982450).
+# Each row is a QuickStatements v1 command adding the statement with "inferred from: Spotify" (S3452 = Q689141).
+SELECT DISTINCT ?qs WHERE {
+  ?item wdt:P31 wd:Q482994 ;
+        wdt:P2205 [] .
+  FILTER NOT EXISTS { ?item p:P437/ps:P437 wd:Q15982450 }
+  BIND(CONCAT(STRAFTER(STR(?item), STR(wd:)), "\tP437\tQ15982450\tS3452\tQ689141") AS ?qs)
+}

@@ -1,0 +1,7 @@
+# Items with a Discogs artist ID (P1953, any rank except deprecated) and no MusicBrainz artist ID (P434, any rank).
+SELECT ?item ?discogs WHERE {
+  ?item p:P1953 ?st .
+  ?st ps:P1953 ?discogs ; wikibase:rank ?rank .
+  FILTER(?rank != wikibase:DeprecatedRank)
+  FILTER NOT EXISTS { ?item p:P434 [] }
+}

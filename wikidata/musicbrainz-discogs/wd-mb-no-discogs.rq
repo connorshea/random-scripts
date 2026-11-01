@@ -1,0 +1,8 @@
+# Items with a MusicBrainz artist ID (P434) and no Discogs artist ID (P1953), at any rank. Run on QLever.
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+SELECT ?item ?mbid WHERE {
+  ?item p:P434 ?st .
+  ?st ps:P434 ?mbid .
+  FILTER NOT EXISTS { ?item p:P1953 ?d }
+}
