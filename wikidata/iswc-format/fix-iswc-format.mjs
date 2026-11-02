@@ -7,8 +7,9 @@
 // keywords (R+/R-) and multiple references per line (!S). QS 3.0 runs consecutive commands on the same
 // item as one edit, so each item's fix shows up as a single edit in its history.
 //
-// Statements are skipped when the check digit is wrong, the item already has the canonical value, or
-// a qualifier/reference uses a datatype this script doesn't know how to write.
+// Statements are skipped when the check digit is wrong, the item already has the canonical value,
+// several statements on the item normalize to the same value, or a qualifier/reference uses a
+// datatype this script doesn't know how to write.
 //
 // Usage: CONTACT_EMAIL=you@example.com node fix-iswc-format.mjs [out-dir]
 // Writes <out-dir>/iswc-format.qs3.txt and <out-dir>/skipped.tsv
@@ -145,6 +146,14 @@ for (const qid of qids) {
   }
   const statements = entity.claims?.P1827 ?? [];
   const existing = new Set(statements.map((s) => s.mainsnak.datavalue?.value));
+  // How many statements normalize to each value. If two do, QuickStatements would merge the second
+  // add into the statement the first one created, mixing their qualifiers and ranks.
+  const normalizedCount = new Map();
+  for (const s of statements) {
+    const v = s.mainsnak.datavalue?.value;
+    const c = v === undefined ? null : CANONICAL.test(v) ? v : canonicalize(v);
+    if (c) normalizedCount.set(c, (normalizedCount.get(c) ?? 0) + 1);
+  }
   for (const st of statements) {
     const old = st.mainsnak.datavalue?.value;
     if (old === undefined || CANONICAL.test(old)) continue;
@@ -154,6 +163,7 @@ for (const qid of qids) {
     if (!value) { skip("not an ISWC with 10 digits"); continue; }
     if (!checkDigitOk(value)) { skip(`check digit wrong (${value})`); continue; }
     if (existing.has(value)) { skip(`item already has ${value}, remove the duplicate by hand`); continue; }
+    if (normalizedCount.get(value) > 1) { skip(`several statements normalize to ${value}, merge them by hand`); continue; }
 
     try {
       const qualifiers = (st["qualifiers-order"] ?? []).flatMap((p) => st.qualifiers[p].map((q) => `\t${p}\t${snakValue(q)}`));
@@ -183,7 +193,7 @@ writeFileSync(
 
 const reasons = {};
 for (const s of skipped) {
-  const key = s.reason.replace(/ \(.*\)$/, "").replace(/item already has .*/, "item already has the canonical value").replace(/^can.t quote string .*/, "qualifier or reference string contains a double quote");
+  const key = s.reason.replace(/ \(.*\)$/, "").replace(/item already has .*/, "item already has the canonical value").replace(/several statements .*/, "several statements normalize to the same value").replace(/^can.t quote string .*/, "qualifier or reference string contains a double quote");
   reasons[key] = (reasons[key] ?? 0) + 1;
 }
 console.error(JSON.stringify({ items: qids.length, statementsFixed: fixed, qsLines: lines.length, skipped: reasons }, null, 2));
