@@ -8,7 +8,7 @@
 //   rerun retries them.
 //
 // Uses the public endpoint https://api.deezer.com/artist/<id>, which needs no API key. Requests are
-// spread out to at most 8 a second, under Deezer's quota of 50 requests per 5 seconds. If Deezer
+// spread out to at most 9 a second, under Deezer's quota of 50 requests per 5 seconds. If Deezer
 // still answers "Quota limit exceeded" (error code 4) the script backs off and retries.
 //
 // Only numeric IDs are ever sent: given something else, like /artist/abc, Deezer searches by name
@@ -33,7 +33,8 @@ const todo = [...new Set(readTsv(join(dir, "candidates.tsv")).slice(0, limit).ma
 console.error(`${done.size} already looked up, ${todo.length} to go`);
 
 // Rate limiter shared by the workers: one request every INTERVAL_MS at most.
-const INTERVAL_MS = 125;
+const REQUESTS_PER_SECOND = 9;
+const INTERVAL_MS = 1000 / REQUESTS_PER_SECOND;
 let nextSlot = 0;
 async function slot() {
   const now = Date.now();

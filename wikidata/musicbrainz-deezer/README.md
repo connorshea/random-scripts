@@ -18,7 +18,7 @@ Run these from a folder for the output files. `.tsv` and `.txt` files are gitign
 
 1. `node fetch-wikidata.mjs .` queries QLever for every MusicBrainz artist ID and every Deezer artist ID on Wikidata, with their ranks, and writes `wd-mb.tsv` and `wd-deezer.tsv`.
 2. `node match.mjs ~/Downloads/artist.tar.xz .` streams the dump, matches items to Deezer IDs through their MusicBrainz artists, and writes `candidates.tsv` and `match-skipped.tsv`.
-3. `node deezer-names.mjs .` looks up each candidate's Deezer artist with the public API (`https://api.deezer.com/artist/<id>`, which needs no key). It writes the results to `deezer-artists.tsv`. That file doubles as a cache, so you can stop the script and rerun it. It sends at most 8 requests a second, so about 36,000 lookups take around 75 minutes.
+3. `node deezer-names.mjs .` looks up each candidate's Deezer artist with the public API (`https://api.deezer.com/artist/<id>`, which needs no key). It writes the results to `deezer-artists.tsv`. That file doubles as a cache, so you can stop the script and rerun it. It sends at most 9 requests a second, so about 36,000 lookups take a little over an hour.
 4. `node build-batch.mjs . --retrieved YYYY-MM-DD` checks the candidates against live Wikidata and the Deezer names. It writes `deezer-ids-001.qs.txt`, `deezer-ids-002.qs.txt`, … (10,000 commands each), plus `accepted.tsv` and `skipped.tsv`. Pass the dump's date as `--retrieved`. It's the name of the dump's folder on data.metabrainz.org.
 
 For a test run, pass `--limit N` to steps 3 and 4 to use only the first N candidates.
