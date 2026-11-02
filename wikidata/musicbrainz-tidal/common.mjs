@@ -61,9 +61,10 @@ export function readTsv(path) {
   });
 }
 
-// Group rows into a Map of key -> array of values.
+// Group rows into a Map of key -> array of distinct values. Distinct, so an item with the same
+// MBID in two statements counts as having one MBID, not two.
 export function groupBy(rows, key, value) {
   const m = new Map();
-  for (const r of rows) (m.get(r[key]) ?? m.set(r[key], []).get(r[key])).push(value(r));
-  return m;
+  for (const r of rows) (m.get(r[key]) ?? m.set(r[key], new Set()).get(r[key])).add(value(r));
+  return new Map([...m].map(([k, v]) => [k, [...v]]));
 }

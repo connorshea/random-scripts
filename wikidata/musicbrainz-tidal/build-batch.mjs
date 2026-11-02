@@ -18,13 +18,15 @@
 //   - Tidal has no artist with the ID, or answers with a different artist ID
 //   - live Wikidata shows the item is gone or redirected, now has a Tidal artist ID, or no longer
 //     has exactly one MBID (the matched one, not counting deprecated statements)
+//   - the Wikidata Query Service (minutes behind live edits, unlike QLever's copy) shows the Tidal ID
+//     is now on another item
 //   - the item has no en or mul label, or that label doesn't match the Tidal artist's name. The
 //     en label is used if there is one, and the mul label otherwise. Both names go through
 //     normalize() from ../musicbrainz-discogs/normalize.mjs, and they match if the Levenshtein
 //     distance between them is at most 2 and at most 20% of the longer one, the same rule as
 //     ../iswc-musicbrainz ("Ultramagnetic MCs" ~ "Ultramagnetic MC's", but not "Hi" ~ "חי").
 
-import { writeFileSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -101,6 +103,22 @@ for (let i = 0; i < qids.length; i += 50) {
   await sleep(500);
 }
 
+// 3. Every Tidal artist ID on Wikidata now, from the Wikidata Query Service, to catch IDs added to
+// another item since the QLever snapshot. One query; values that are full URLs count by their ID.
+console.error("fetching current Tidal artist IDs from the Wikidata Query Service");
+const wdqs = await fetchJson("https://query.wikidata.org/sparql", {
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/sparql-results+json" },
+  body: new URLSearchParams({ query: "SELECT ?item ?value WHERE { ?item p:P4576/ps:P4576 ?value }" }),
+});
+const liveTidalToItems = new Map();
+for (const b of wdqs.results.bindings) {
+  const id = b.value.value.match(/tidal\.com\/(?:browse\/)?artist\/(\d+)/)?.[1] ?? b.value.value;
+  const qid = b.item.value.split("/").pop();
+  (liveTidalToItems.get(id) ?? liveTidalToItems.set(id, new Set()).get(id)).add(qid);
+}
+console.error(`${wdqs.results.bindings.length} Tidal artist ID statements on Wikidata`);
+
 const SUMMARY = "/* import Tidal artist ID (P4576) from MusicBrainz */";
 const retrieved = `+${opts.retrieved}T00:00:00Z/11`;
 const lines = [];
@@ -116,11 +134,15 @@ for (const c of remaining) {
   const label = entity.labels?.en?.value ?? entity.labels?.mul?.value;
   if (!label) { skip(c, "no en or mul label"); continue; }
   if (!namesMatch(label, c.tidalName)) { skip(c, "name mismatch", `${label} | ${c.tidalName}`); continue; }
+  const others = [...(liveTidalToItems.get(c.tidal) ?? [])].filter((q) => q !== c.qid);
+  if (others.length) { skip(c, "Tidal ID now on another item", others.join(",")); continue; }
   lines.push(`${c.qid}\tP4576\t"${c.tidal}"\tS11797\tQ14005\tS434\t"${c.mbid}"\tS813\t${retrieved}\t${SUMMARY}`);
   accepted.push({ ...c, wdLabel: label });
 }
 
-// 3. Write the batches and reports.
+// 4. Write the batches and reports.
+// Remove batches from an earlier run first, so a rebuild with fewer files doesn't leave a stale one.
+for (const f of readdirSync(dir)) if (/^tidal-ids-\d{3}\.qs\.txt$/.test(f)) rmSync(join(dir, f));
 const files = [];
 for (let i = 0; i < lines.length; i += batchSize) {
   const name = `tidal-ids-${String(i / batchSize + 1).padStart(3, "0")}.qs.txt`;
