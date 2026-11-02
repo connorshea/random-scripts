@@ -32,7 +32,7 @@
 //     is at most 2 and at most 20% of the longer one ("Rockin'" ~ "Rocking", "USA" ~ "U.S.A.",
 //     "Marshmallow World" ~ "A Marshmallow World", but not "Hi" ~ "חי").
 
-import { writeFileSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -215,6 +215,8 @@ for (const qid of qids) {
 }
 
 // 4. Write the batches and the skip report.
+// Remove batches from an earlier run first, so a rebuild with fewer files doesn't leave a stale one.
+for (const f of readdirSync(dir)) if (/^iswc-import-\d{3}\.qs\.txt$/.test(f)) rmSync(join(dir, f));
 const files = [];
 for (let i = 0; i < lines.length; i += batchSize) {
   const name = `iswc-import-${String(i / batchSize + 1).padStart(3, "0")}.qs.txt`;
