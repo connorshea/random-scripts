@@ -1,0 +1,5 @@
+# Every vglist game ID (P8351) on Wikidata, any rank, with the item it's on.
+SELECT ?item ?vglist WHERE {
+  ?item p:P8351 ?st .
+  ?st ps:P8351 ?vglist .
+}

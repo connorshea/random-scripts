@@ -1,0 +1,8 @@
+# Video games (P31 Q7889) with no vglist game ID (P8351, any rank), with their English label, or the mul label if there's no English one.
+SELECT ?item ?label WHERE {
+  ?item wdt:P31 wd:Q7889 .
+  FILTER NOT EXISTS { ?item p:P8351 [] }
+  OPTIONAL { ?item rdfs:label ?en . FILTER(LANG(?en) = "en") }
+  OPTIONAL { ?item rdfs:label ?mul . FILTER(LANG(?mul) = "mul") }
+  BIND(COALESCE(?en, ?mul) AS ?label)
+}

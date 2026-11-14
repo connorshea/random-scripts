@@ -1,48 +1,44 @@
 # frozen_string_literal: true
 
 ##
+# Writes a QuickStatements 3.0 batch that adds vglist game IDs (P8351) to
+# Wikidata items, based on the Wikidata IDs stored on vglist games.
+#
+# Nothing is edited and no web service is called. The inputs are files:
+#
+# 1. The games JSON export from the vglist admin portal, e.g.
+#    vglist-games-2026-11-14.json:
+#      { "exported_at": "...", "games": [{ "id": 1, "name": "...", "steam_app_ids": [...], "wikidata_id": 2374 }, ...] }
+# 2. wd-vglist-ids.tsv: the result of wd-vglist-ids.rq (every P8351 value on
+#    Wikidata and the item it's on), saved as TSV from QLever or the Wikidata
+#    Query Service.
+# 3. wd-video-games-no-vglist.tsv: the result of wd-video-games-no-vglist.rq
+#    (video games with no vglist ID, with their English or mul label).
+#
 # USAGE:
 #
-# This script pulls down every game from vglist and then - based on their Wikidata IDs - will update their Wikidata items with the vglist ID, if it exists.
+#   ruby vglist.rb vglist-games-2026-11-14.json wd-vglist-ids.tsv wd-video-games-no-vglist.tsv [out-dir]
 #
-# ENVIRONMENT VARIABLES:
+# A game is added when:
+# - its Wikidata item is in wd-video-games-no-vglist.tsv (so it exists, isn't
+#   a redirect, is a video game and has no vglist ID),
+# - no other vglist game points at the same item,
+# - its vglist ID isn't already on some Wikidata item,
+# - the item's label matches the vglist name (see games_have_same_name?).
 #
-# USE_VGLIST_API (optional): defaults to false, whether to actually pull all the games down from the vglist API or to use the stored vglist_games.json file. Used for repeated runs so the vglist API doesn't get hit so many times.
-# VGLIST_EMAIL (optional): email address for your vglist account
-# VGLIST_TOKEN (optional): access token for your vglist account
-# WIKIDATA_USERNAME: username for Wikidata account
-# WIKIDATA_PASSWORD: password for Wikidata account
-
-require 'bundler/inline'
-
-gemfile do
-  source 'https://rubygems.org'
-  gem 'mediawiki_api', require: true
-  gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
-  gem 'sparql-client'
-  gem 'addressable'
-  gem 'nokogiri'
-  gem 'ruby-progressbar', '~> 1.10'
-  gem 'graphql-client', '~> 0.16.0'
-end
+# Writes to out-dir (default: the current directory):
+# - vglist-ids.qs.tsv: the QuickStatements batch, in the tab-separated
+#   (v1) command syntax that QuickStatements 3.0 takes. If it has more than
+#   CHUNK_SIZE lines (default 20000), it's split into vglist-ids.001.qs.tsv,
+#   vglist-ids.002.qs.tsv, ... instead, since QuickStatements won't take
+#   very large batches.
+# - vglist-name-mismatches.tsv: games that could be matched by Wikidata ID but
+#   whose name differs from the Wikidata label, for manual review.
+# - vglist-skipped.tsv: every other game with a Wikidata ID that wasn't added,
+#   and why.
 
 require 'json'
-require 'sparql/client'
-require_relative '../wikidata_helper.rb'
-require_relative '../wikidata_bot_client.rb'
-require 'open-uri'
-require "graphql/client"
-require "graphql/client/http"
-
-include WikidataHelper
-
-# Killing the script mid-run gets caught by the rescues later in the script
-# and fails to kill the script. This makes sure that the script can be killed
-# normally.
-trap("SIGINT") { exit! }
-# For comparing using Levenshtein Distance.
-# https://stackoverflow.com/questions/16323571/measure-the-distance-between-two-strings-with-ruby
-require "rubygems/text"
+require 'rubygems/text'
 
 def games_have_same_name?(name1, name2)
   name1 = name1.downcase
@@ -50,206 +46,152 @@ def games_have_same_name?(name1, name2)
   return true if name1 == name2
 
   levenshtein = Class.new.extend(Gem::Text).method(:levenshtein_distance)
-
-  distance = levenshtein.call(name1, name2)
-  return true if distance <= 2
+  return true if levenshtein.call(name1, name2) <= 2
 
   replacements = [
-    {
-      before: '&',
-      after: 'and'
-    },
-    {
-      before: 'deluxe',
-      after: ''
-    },
-    {
-      before: ' (video game)',
-      after: ''
-    },
+    { before: '&', after: 'and' },
+    { before: 'deluxe', after: '' },
+    { before: ' (video game)', after: '' },
   ]
   replacements.each do |replacement|
     name1 = name1.gsub(replacement[:before], replacement[:after]).strip
     name2 = name2.gsub(replacement[:before], replacement[:after]).strip
   end
 
-  return true if name1 == name2
-
-  return false
+  name1 == name2
 end
 
-def query
-  sparql = <<-SPARQL
-    SELECT ?item ?itemLabel WHERE
-    {
-      ?item wdt:P31 wd:Q7889; # instance of video game
-      FILTER NOT EXISTS { ?item wdt:P8351 ?vglist_id . } # and no vglist ID
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-    }
-  SPARQL
-
-  return sparql
+# Reads a SPARQL TSV result (QLever or WDQS) into an array of hashes keyed by
+# variable name without the "?".
+def read_sparql_tsv(path)
+  lines = File.readlines(path, chomp: true)
+  header = lines.shift.split("\t").map { |h| h.delete_prefix('?') }
+  lines.reject(&:empty?).map { |line| header.zip(line.split("\t", -1)).to_h }
 end
 
-if ENV['USE_VGLIST_API'] == 'true'
-  module VGListGraphQL
-    HTTP = GraphQL::Client::HTTP.new("https://vglist.co/graphql") do
-      def headers(context)
-        {
-          "User-Agent": "vglist Wikidata Importer",
-          "X-User-Email": ENV['VGLIST_EMAIL'],
-          "X-User-Token": ENV['VGLIST_TOKEN'],
-          "Content-Type": "application/json",
-          "Accept": "*/*"
-        }
-      end
-    end
-
-    # Fetch latest schema on init, this will make a network request
-    Schema = GraphQL::Client.load_schema(HTTP)
-
-    Client = GraphQL::Client.new(schema: Schema, execute: HTTP)
-  end
-
-  GamesQuery = VGListGraphQL::Client.parse <<-'GRAPHQL'
-    query($page: String) {
-      games(after: $page, first: 100) {
-        nodes {
-          id
-          name
-          wikidataId
-        }
-        pageInfo {
-          hasNextPage
-          pageSize
-          endCursor
-        }
-      }
-    }
-  GRAPHQL
+# "<http://www.wikidata.org/entity/Q123>" or "http://...Q123" -> "Q123"
+def qid_from(value)
+  value.to_s[/Q\d+(?=>?\z)/]
 end
 
-def get_wikidata_items_with_no_vglist_id_from_sparql
-  sparql_endpoint = "https://query.wikidata.org/sparql"
+# "\"Some \\\"name\\\"\"@en" -> "Some \"name\""; bare values come back as-is.
+def literal_from(value)
+  value = value.to_s
+  match = value.match(/\A"(.*)"(?:@[\w-]+|\^\^.+)?\z/m)
+  return value if match.nil?
 
-  client = SPARQL::Client.new(
-    sparql_endpoint,
-    method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
-  )
-
-  rows = client.query(query)
-
-  return rows
-end
-
-if ENV['USE_VGLIST_API'] == 'true'
-  puts "Using the vglist API to get all the games on the site."
-
-  vglist_games = []
-  next_page_cursor = nil
-
-  # If it's nil or has a value (aka it's not false), then continue looping.
-  while next_page_cursor.nil? || next_page_cursor
-    # Sleep for half a second between each iteration.
-    sleep 0.5
-    puts "#{vglist_games.length} games catalogued so far."
-    response = VGListGraphQL::Client.query(GamesQuery, variables: { page: next_page_cursor })
-
-    response.data.games.nodes.each do |game|
-      # Dup it otherwise you'll get a frozen hash error.
-      game_hash = game.to_h.dup
-      # Rename the wikidata id attribute to use snake case.
-      game_hash['wikidata_id'] = game_hash['wikidataId']
-      game_hash.delete('wikidataId')
-      vglist_games << game_hash.to_h unless game.wikidata_id.nil?
-    end
-
-    if response.data.games.page_info.has_next_page
-      next_page_cursor = response.data.games.page_info.end_cursor 
-    else
-      next_page_cursor = false
+  match[1].gsub(/\\(.)/) do
+    case Regexp.last_match(1)
+    when 't' then "\t"
+    when 'n' then "\n"
+    when 'r' then "\r"
+    else Regexp.last_match(1)
     end
   end
-
-  File.write('vglist_games.json', JSON.pretty_generate(vglist_games))
-else
-  puts "Reading data from vglist_games.json, if you want to use the vglist API to get the data set the USE_VGLIST_API environment variable."
-
-  vglist_games = JSON.parse(File.read('vglist_games.json'))
 end
 
-# Authenticate with Wikidata.
-wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
-wikidata_client.log_in ENV["WIKIDATA_USERNAME"], ENV["WIKIDATA_PASSWORD"]
-
-puts "#{vglist_games.count} games on vglist"
-
-wikidata_rows = get_wikidata_items_with_no_vglist_id_from_sparql
-
-wikidata_items = []
-
-wikidata_rows.each do |row|
-  key_hash = row.to_h
-  wikidata_item = {
-    name: key_hash[:itemLabel].to_s,
-    wikidata_id: key_hash[:item].to_s.sub('http://www.wikidata.org/entity/Q', '')
-  }
-
-  wikidata_items << wikidata_item
+def tsv_row(values)
+  values.map { |v| v.to_s.gsub(/\s/, ' ') }.join("\t")
 end
 
-# Get all the Wikidata IDs that are in the vglist_games set and on wikidata with no vglist ID.
-wikidata_ids_intersection = (vglist_games.map { |g| g['wikidata_id'].to_s } & wikidata_items.map { |item| item[:wikidata_id] })
+vglist_path, vglist_ids_path, candidates_path, out_dir = ARGV
+if vglist_path.nil? || vglist_ids_path.nil? || candidates_path.nil?
+  abort 'Usage: ruby vglist.rb vglist-games.json wd-vglist-ids.tsv wd-video-games-no-vglist.tsv [out-dir]'
+end
+out_dir ||= '.'
+chunk_size = Integer(ENV.fetch('CHUNK_SIZE', '20000'))
 
-puts "#{wikidata_ids_intersection.count} games can be matched based on Wikidata IDs."
+export = JSON.parse(File.read(vglist_path))
+vglist_games = export.fetch('games')
+puts "#{vglist_games.count} games in the vglist export (exported at #{export['exported_at']})."
 
-progress_bar = ProgressBar.create(
-  total: wikidata_ids_intersection.count,
-  format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
+games_with_wikidata = vglist_games.reject { |g| g['wikidata_id'].nil? }
+puts "#{games_with_wikidata.count} of them have a Wikidata ID."
+
+# vglist ID -> items it's already on, and items that already have one.
+vglist_id_in_use = Hash.new { |h, k| h[k] = [] }
+items_with_vglist_id = {}
+read_sparql_tsv(vglist_ids_path).each do |row|
+  qid = qid_from(row['item'])
+  next if qid.nil?
+
+  vglist_id_in_use[literal_from(row['vglist'])] << qid
+  items_with_vglist_id[qid] = true
+end
+puts "#{vglist_id_in_use.count} vglist IDs are already on Wikidata, on #{items_with_vglist_id.count} items."
+
+# QID -> label (nil when the item has no English or mul label).
+candidate_labels = {}
+read_sparql_tsv(candidates_path).each do |row|
+  qid = qid_from(row['item'])
+  next if qid.nil?
+
+  label = literal_from(row['label'])
+  candidate_labels[qid] = label.empty? ? nil : label
+end
+puts "#{candidate_labels.count} video games on Wikidata have no vglist ID."
+
+games_per_qid = games_with_wikidata.group_by { |g| "Q#{g['wikidata_id']}" }
+
+statements = []
+mismatches = []
+skipped = []
+
+games_with_wikidata.each do |game|
+  qid = "Q#{game['wikidata_id']}"
+  vglist_id = game['id'].to_s
+
+  reason =
+    if items_with_vglist_id.key?(qid)
+      'item already has a vglist ID'
+    elsif !candidate_labels.key?(qid)
+      'item not in the query result (not a video game, a redirect, or deleted)'
+    elsif games_per_qid[qid].length > 1
+      "item is linked from several vglist games: #{games_per_qid[qid].map { |g| g['id'] }.join(',')}"
+    elsif vglist_id_in_use.key?(vglist_id)
+      "vglist ID already used on #{vglist_id_in_use[vglist_id].join(',')}"
+    end
+
+  if reason
+    # Don't clutter the file with the ones that are already done.
+    skipped << [reason, qid, vglist_id, game['name']] unless vglist_id_in_use[vglist_id] == [qid]
+    next
+  end
+
+  label = candidate_labels[qid]
+  if label && games_have_same_name?(game['name'], label)
+    statements << tsv_row([qid, 'P8351', "\"#{vglist_id}\""])
+  else
+    mismatches << [qid, vglist_id, game['name'], label.to_s]
+  end
+end
+
+Dir.glob(File.join(out_dir, 'vglist-ids*.qs.tsv')).each { |f| File.delete(f) }
+batch_files =
+  if statements.length > chunk_size
+    statements.each_slice(chunk_size).with_index(1).map do |slice, i|
+      path = File.join(out_dir, format('vglist-ids.%03d.qs.tsv', i))
+      File.write(path, slice.join("\n") + "\n")
+      path
+    end
+  else
+    path = File.join(out_dir, 'vglist-ids.qs.tsv')
+    File.write(path, statements.map { |s| "#{s}\n" }.join)
+    [path]
+  end
+
+File.write(
+  File.join(out_dir, 'vglist-name-mismatches.tsv'),
+  ([tsv_row(%w[qid vglist_id vglist_name wikidata_label])] + mismatches.map { |m| tsv_row(m) }).join("\n") + "\n"
+)
+File.write(
+  File.join(out_dir, 'vglist-skipped.tsv'),
+  ([tsv_row(%w[reason qid vglist_id vglist_name])] + skipped.map { |s| tsv_row(s) }).join("\n") + "\n"
 )
 
-games_that_can_be_matched = 0
-games_that_have_different_names = 0
-
-vglist_games.each do |game|
-  # Check if the Wikidata ID is represented, and skip if it isn't. Intentionally skip incrementing in this case.
-  if !wikidata_ids_intersection.include?(game['wikidata_id'].to_s)
-    next
-  end
-
-  # Get the Wikidata item for the current vglist game.
-  wikidata_item_for_current_game = wikidata_items.find { |item| item[:wikidata_id] == game['wikidata_id'].to_s }
-
-  # Make sure the game doesn't already have a vglist ID.
-  existing_claims = WikidataHelper.get_claims(entity: "Q#{wikidata_item_for_current_game[:wikidata_id]}", property: 'P8351')
-  if existing_claims != {} && !existing_claims.nil?
-    progress_bar.log "SKIP: This item already has a vglist ID."
-    progress_bar.increment
-    next
-  end
-
-  # Make sure they have the same or a very similar name.
-  if games_have_same_name?(game['name'], wikidata_item_for_current_game[:name])
-    games_that_can_be_matched += 1
-    begin
-      claim = wikidata_client.create_claim("Q#{wikidata_item_for_current_game[:wikidata_id]}", "value", "P8351", "\"#{game['id']}\"")
-      progress_bar.log "SUCCESS: Updated Q#{wikidata_item_for_current_game[:wikidata_id]} with vglist ID of #{game['id']}."
-    rescue MediawikiApi::ApiError => e
-      # Print the game ID and Wikidata ID.
-      progress_bar.log "Q#{wikidata_item_for_current_game[:wikidata_id]}, with vglist id #{game['id']} | ERROR: #{e}"
-    end
-    sleep 0.5
-  else
-    progress_bar.log "NAME MISMATCH: #{game['name']} can be matched based on its Wikidata ID, but the name on Wikidata differs from the one on vglist."
-    progress_bar.log "NAME MISMATCH: (vglist ID: #{game['id']}, Wikidata name: #{wikidata_item_for_current_game[:name]}, Wikidata ID: #{wikidata_item_for_current_game[:wikidata_id]})"
-    games_that_have_different_names += 1
-  end
-
-  progress_bar.increment
+puts "#{statements.count} statements written to #{batch_files.join(', ')}."
+puts "#{mismatches.count} games match by Wikidata ID but have a different name, see vglist-name-mismatches.tsv."
+puts "#{skipped.count} other games skipped, see vglist-skipped.tsv:"
+skipped.map { |s| s.first.sub(/:.*|on Q.*/, '').strip }.tally.sort_by { |_, n| -n }.each do |r, n|
+  puts "  #{n}  #{r}"
 end
-
-progress_bar.finish unless progress_bar.finished?
-
-puts "#{games_that_can_be_matched} games matched based on Wikidata ID."
-puts "#{games_that_have_different_names} games can be matched based on Wikidata ID but have different names."
