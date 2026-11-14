@@ -17,7 +17,7 @@ gemfile do
   gem 'mediawiki_api', require: true
   gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
   gem 'nokogiri'
-  gem 'sparql-client', '~> 3.1.0'
+  gem 'sparql-client', '~> 3.3'
   gem 'addressable'
   gem 'ruby-progressbar', '~> 1.10'
   gem 'debug'

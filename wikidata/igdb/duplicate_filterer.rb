@@ -13,7 +13,7 @@ require 'bundler/inline'
 gemfile do
   source 'https://rubygems.org'
   gem 'nokogiri'
-  gem 'sparql-client', '~> 3.1.0'
+  gem 'sparql-client', '~> 3.3'
   gem 'addressable'
   gem 'ruby-progressbar', '~> 1.10'
   gem 'debug'

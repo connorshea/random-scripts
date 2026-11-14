@@ -3,6 +3,33 @@ module WikidataHelper
   require "open-uri"
   require "json"
 
+  # Wikimedia rate-limits requests that don't send a descriptive User-Agent.
+  # https://meta.wikimedia.org/wiki/User-Agent_policy
+  USER_AGENT = "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby #{RUBY_VERSION}".freeze
+  MAX_RETRIES = 5
+
+  #
+  # Open a URI with a proper User-Agent, retrying on 429 and 5xx responses.
+  # Honors the Retry-After header when present, otherwise backs off
+  # exponentially.
+  #
+  def open_with_retries(uri)
+    attempts = 0
+    begin
+      attempts += 1
+      URI.open(uri, 'User-Agent' => USER_AGENT)
+    rescue OpenURI::HTTPError => e
+      status = e.io.status.first.to_i
+      raise unless (status == 429 || status >= 500) && attempts < MAX_RETRIES
+
+      retry_after = e.io.meta['retry-after'].to_i
+      wait = retry_after.positive? ? retry_after : 2**attempts
+      warn "Wikidata API returned #{status}, retrying in #{wait}s (attempt #{attempts}/#{MAX_RETRIES})..."
+      sleep wait
+      retry
+    end
+  end
+
   #
   # Make an API call.
   #
@@ -41,7 +68,7 @@ module WikidataHelper
     puts template if ENV['DEBUG']
     api_uri = URI.parse(template.to_s)
 
-    response = JSON.load(URI.open(api_uri))
+    response = JSON.load(open_with_retries(api_uri))
 
     if response['success'] && action == 'wbgetentities'
       return response['entities']

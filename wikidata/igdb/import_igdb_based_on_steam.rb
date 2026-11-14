@@ -16,9 +16,9 @@ gemfile do
   gem 'mediawiki_api', require: true
   gem 'mediawiki_api-wikidata', git: 'https://github.com/wmde/WikidataApiGem.git'
   gem 'nokogiri'
-  gem 'sparql-client', '~> 3.1.0'
+  gem 'sparql-client', '~> 3.3'
   gem 'addressable'
-  gem 'ruby-progressbar', '~> 1.10'
+  gem 'ruby-progressbar', '~> 1.13'
   gem 'debug'
 end
 
@@ -29,6 +29,7 @@ require 'sparql/client'
 # https://stackoverflow.com/questions/16323571/measure-the-distance-between-two-strings-with-ruby
 require "rubygems/text"
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 
 include WikidataHelper
 
@@ -88,7 +89,7 @@ def wikidata_rows
   sparql_client = SPARQL::Client.new(
     "https://query.wikidata.org/sparql",
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.4" }
   )
 
   # Get the response from the Wikidata query.
@@ -159,13 +160,16 @@ igdb_games.filter! { |igdb_game| igdb_game[:steam_ids].count > 0 }
 
 rows = wikidata_rows
 
-steam_ids_from_wikidata = rows.map { |row| row[:steam_app_id] }
+# Index the Wikidata rows by Steam ID for fast lookups. If multiple items share
+# a Steam ID, keep the first one.
+wikidata_rows_by_steam_id = {}
+rows.each { |row| wikidata_rows_by_steam_id[row[:steam_app_id]] ||= row }
 
 # Filter down to IGDB Games where one of the Steam ID exists for an item in
 # Wikidata, where that Wikidata item has no IGDB ID. Essentially, get the
 # intersection of the SPARQL query and the IGDB games with Steam IDs.
 igdb_games.filter! do |igdb_game|
-  igdb_game[:steam_ids].any? { |id| steam_ids_from_wikidata.include?(id) }
+  igdb_game[:steam_ids].any? { |id| wikidata_rows_by_steam_id.key?(id) }
 end
 
 puts "There are #{igdb_games.count} items in Wikidata with a matching Steam ID from IGDB and no corresponding IGDB ID."
@@ -187,7 +191,7 @@ igdb_games.each do |igdb_game|
 
   matching_wikidata_items = []
   igdb_game[:steam_ids].each do |steam_id|
-    matching_wikidata_items << rows.find { |row| row[:steam_app_id] == steam_id }
+    matching_wikidata_items << wikidata_rows_by_steam_id[steam_id]
   end
 
   # Filter out any nils
@@ -228,7 +232,7 @@ igdb_games.each do |igdb_game|
   end
 
   # Check for an existing IGDB claim on the Wikidata item.
-  existing_claims = WikidataHelper.get_claims(entity: matching_wikidata_item[:wikidata_id], property: IGDB_PROPERTY)
+  existing_claims = WikidataHelper.get_claims(entity: "Q#{matching_wikidata_item[:wikidata_id]}", property: IGDB_PROPERTY)
   if existing_claims != {} && !existing_claims.nil?
     progress_bar.log "SKIP: This item already has an IGDB ID."
     progress_bar.increment
@@ -238,11 +242,7 @@ igdb_games.each do |igdb_game|
   # Add a sleep to avoid hitting the rate limit.
   sleep 1
 
-  # Add the IGDB ID to the relevant Wikidata item.
-  claim = client.create_claim("Q#{matching_wikidata_item[:wikidata_id]}", "value", IGDB_PROPERTY, "\"#{igdb_game[:slug]}\"")
-  claim_id = claim.data.dig('claim', 'id')
-
-  snak = {
+  reference_snaks = {
     REFERENCE_PROPERTIES[:matched_by_identifier_from] => [
       {
         "snaktype" => "value",
@@ -289,11 +289,35 @@ igdb_games.each do |igdb_game|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Add the IGDB ID claim and its reference to the Wikidata item in a single
+  # edit, so a claim can never end up without its reference.
+  claim = {
+    "type" => "statement",
+    "rank" => "normal",
+    "mainsnak" => {
+      "snaktype" => "value",
+      "property" => IGDB_PROPERTY,
+      "datavalue" => {
+        "value" => igdb_game[:slug],
+        "type" => "string"
+      }
+    },
+    "references" => [
+      { "snaks" => reference_snaks }
+    ]
+  }
+
   begin
-    wikidata_client.set_reference(claim_id, snak.to_json)
+    client.action(
+      :wbeditentity,
+      token_type: "csrf",
+      id: "Q#{matching_wikidata_item[:wikidata_id]}",
+      data: { "claims" => [claim] }.to_json
+    )
   rescue MediawikiApi::ApiError => e
-    progress_bar.log e
+    progress_bar.log "ERROR: Failed to edit Q#{matching_wikidata_item[:wikidata_id]}: #{e}"
+    progress_bar.increment
+    next
   end
 
   # Add the ID to the array of Wikidata IDs we've edited.
