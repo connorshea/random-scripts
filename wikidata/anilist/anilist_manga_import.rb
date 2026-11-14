@@ -200,7 +200,7 @@ anilist_manga.each do |manga|
   end
 
   # Make sure the manga doesn't already have a AniList ID.
-  existing_claims = WikidataHelper.get_claims(entity: wikidata_item_for_current_manga[:wikidata_id], property: ANILIST_MANGA_PID)
+  existing_claims = WikidataHelper.get_claims(entity: "Q#{wikidata_item_for_current_manga[:wikidata_id]}", property: ANILIST_MANGA_PID)
   if existing_claims != {} && !existing_claims.nil?
     progress_bar.log "This item already has a AniList manga ID."
     progress_bar.increment

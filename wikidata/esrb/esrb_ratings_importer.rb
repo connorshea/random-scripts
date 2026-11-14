@@ -17,6 +17,7 @@ require 'json'
 require 'sparql/client'
 require 'open-uri'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 include WikidataHelper
 
 # Killing the script mid-run gets caught by the rescues later in the script
@@ -266,52 +267,30 @@ items_with_esrb_id_and_no_rating.each do |item|
     next
   end
 
-  begin
-    progress_bar.log rating_qid.inspect if ENV['DEBUG']
-    claim = wikidata_client.create_claim(
-      wikidata_id,
-      "value",
-      ESRB_RATING,
-      {
-        "entity-type": "item",
-        "numeric-id": rating_qid,
-        "id": "Q#{rating_qid}"
-      }.to_json
-    )
-  rescue MediawikiApi::ApiError => e
-    progress_bar.log e
-    next
-  end
+  progress_bar.log rating_qid.inspect if ENV['DEBUG']
 
-  # Get the claim ID returned from the create_claim method.
-  claim_id = claim.data.dig('claim', 'id')
+  # Build the qualifiers for the ESRB rating statement. Properties with no
+  # values get a "no value" qualifier.
+  qualifier_values = generate_rating_qualifier_snak(game, progress_bar)
+  progress_bar.log("No content descriptors declared for #{game.title}.") if qualifier_values[CONTENT_DESCRIPTOR_PID].empty?
+  progress_bar.log("No interactive elements declared for #{game.title}.") if qualifier_values[ESRB_INTERACTIVE_ELEMENTS_PID].empty?
 
-  # Add qualifiers to the newly-created ESRB rating claim.
-  qualifier_snak = generate_rating_qualifier_snak(game, progress_bar)
-
-  if qualifier_snak[CONTENT_DESCRIPTOR_PID].empty?
-    progress_bar.log("No content descriptors declared for #{game.title}.")
-    # The gem doesn't let us set qualifiers with novalue, so we have to use the action method directly.
-    wikidata_client.action(:wbsetqualifier, token_type: "csrf", claim: claim_id, snaktype: 'novalue', property: CONTENT_DESCRIPTOR_PID)
-  else
-    progress_bar.log 'Adding content descriptor qualifiers to ESRB Rating statement...'
-    qualifier_snak[CONTENT_DESCRIPTOR_PID].each do |descriptor|
-      wikidata_client.set_qualifier(claim_id, 'value', CONTENT_DESCRIPTOR_PID, descriptor.to_json)
+  qualifiers = qualifier_values.to_h do |property, values|
+    snaks = if values.empty?
+      [{ "snaktype" => "novalue", "property" => property }]
+    else
+      values.map do |value|
+        {
+          "snaktype" => "value",
+          "property" => property,
+          "datavalue" => { "value" => value, "type" => "wikibase-entityid" }
+        }
+      end
     end
+    [property, snaks]
   end
 
-  if qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID].empty?
-    progress_bar.log("No interactive elements declared for #{game.title}.")
-    # The gem doesn't let us set qualifiers with novalue, so we have to use the action method directly.
-    wikidata_client.action(:wbsetqualifier, token_type: "csrf", claim: claim_id, snaktype: 'novalue', property: ESRB_INTERACTIVE_ELEMENTS_PID)
-  else
-    progress_bar.log 'Adding interactive elements qualifiers to ESRB Rating statement...'
-    qualifier_snak[ESRB_INTERACTIVE_ELEMENTS_PID].each do |interactive_elem|
-      wikidata_client.set_qualifier(claim_id, 'value', ESRB_INTERACTIVE_ELEMENTS_PID, interactive_elem.to_json)
-    end
-  end
-
-  # Add references to statement
+  # References for the statement.
   reference_snak = {
     REFERENCE_PROPERTIES[:stated_in] => [
       {
@@ -359,11 +338,20 @@ items_with_esrb_id_and_no_rating.each do |item|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Add the ESRB rating statement with its qualifiers and reference in a single edit.
   begin
-    wikidata_client.set_reference(claim_id, reference_snak.to_json)
+    wikidata_client.add_statement(
+      wikidata_id,
+      WikidataBotClient.statement(
+        property: ESRB_RATING,
+        datavalue: WikidataBotClient.item_value(rating_qid),
+        qualifiers: qualifiers,
+        references: [reference_snak]
+      )
+    )
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
+    next
   end
 
   # To avoid hitting the API rate limit.

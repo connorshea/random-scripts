@@ -23,6 +23,7 @@ require 'json'
 require 'sparql/client'
 require_relative './pcgw_helper.rb'
 require_relative '../../wikidata_helper.rb'
+require_relative '../../wikidata_bot_client.rb'
 
 include PcgwHelper
 include WikidataHelper
@@ -73,7 +74,8 @@ REFERENCE_PROPERTIES = {
 
 PCGAMINGWIKI_QID = 17013880
 
-# Need to use wbsetreference API here. The JSON snak input for adding the
+# The JSON snaks for the reference (passed as `references:` to
+# WikidataBotClient.statement) for adding the
 # reference URL, stated in, and retreived values looks like this, it is
 # horrendous:
 #
@@ -158,16 +160,7 @@ rows.each do |row|
   strategy_wiki_id = strategy_wiki_ids.first.gsub(' ', '_')
   progress_bar.log "Adding #{strategy_wiki_id} to #{key_hash[:itemLabel]}"
 
-  begin
-    progress_bar.log strategy_wiki_ids.inspect if ENV['DEBUG']
-    claim = wikidata_client.create_claim(wikidata_id, "value", "P9075", "\"#{strategy_wiki_id}\"")
-  rescue MediawikiApi::ApiError => e
-    progress_bar.log e
-    next
-  end
-
-  # Get the claim ID returned from the create_claim method.
-  claim_id = claim.data.dig('claim', 'id')
+  progress_bar.log strategy_wiki_ids.inspect if ENV['DEBUG']
 
   snak = {
     REFERENCE_PROPERTIES[:stated_in] => [
@@ -216,11 +209,19 @@ rows.each do |row|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Add the statement and its reference in a single edit.
   begin
-    wikidata_client.set_reference(claim_id, snak.to_json)
+    wikidata_client.add_statement(
+      wikidata_id,
+      WikidataBotClient.statement(
+        property: 'P9075',
+        datavalue: WikidataBotClient.string_value(strategy_wiki_id),
+        references: [snak]
+      )
+    )
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
+    next
   end
   sleep 1
 end

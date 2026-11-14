@@ -15,6 +15,7 @@ require 'json'
 require 'sparql/client'
 require_relative './pcgw_helper.rb'
 require_relative '../../wikidata_helper.rb'
+require_relative '../../wikidata_bot_client.rb'
 
 include PcgwHelper
 include WikidataHelper
@@ -94,16 +95,7 @@ rows.each do |row|
 
   progress_bar.log "Adding #{steam_app_ids[0]} to #{key_hash[:itemLabel]}"
 
-  begin
-    progress_bar.log steam_app_ids.inspect if ENV['DEBUG']
-    claim = wikidata_client.create_claim(wikidata_id, "value", "P1733", "\"#{steam_app_ids[0]}\"")
-  rescue MediawikiApi::ApiError => e
-    progress_bar.log e
-    next
-  end
-
-  # Get the claim ID returned from the create_claim method.
-  claim_id = claim.data.dig('claim', 'id')
+  progress_bar.log steam_app_ids.inspect if ENV['DEBUG']
 
   snak = {
     REFERENCE_PROPERTIES[:stated_in] => [
@@ -152,11 +144,19 @@ rows.each do |row|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Add the statement and its reference in a single edit.
   begin
-    wikidata_client.set_reference(claim_id, snak.to_json)
+    wikidata_client.add_statement(
+      wikidata_id,
+      WikidataBotClient.statement(
+        property: 'P1733',
+        datavalue: WikidataBotClient.string_value(steam_app_ids[0]),
+        references: [snak]
+      )
+    )
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
+    next
   end
   sleep 1
 end

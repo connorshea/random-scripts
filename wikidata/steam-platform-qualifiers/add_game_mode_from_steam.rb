@@ -22,6 +22,7 @@ require 'net/http'
 require 'mediawiki_api'
 require 'mediawiki_api/wikidata/wikidata_client'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 
 include WikidataHelper
 
@@ -131,18 +132,18 @@ rows.each_with_index do |row, index|
   progress_bar.log "Adding #{categories.join(', ')} to #{name}."
   progress_bar.log "#{row[:item].to_s}"
 
-  # Try to create the claim for each game mode, report an error if it fails for any reason.
-  categories.each do |category|
-    begin
-      wikidata_game_mode_identifier = {
-        "entity-type": "item",
-        "numeric-id": game_mode_wikidata_ids[category],
-        "id": "Q#{game_mode_wikidata_ids[category]}"
-      }
-      claim = wikidata_client.create_claim(item, "value", "P404", wikidata_game_mode_identifier.to_json)
-    rescue => error
-      progress_bar.log "ERROR: #{error}"
-    end
+  # Create the claims for all the game modes in a single edit, report an error
+  # if it fails for any reason.
+  statements = categories.map do |category|
+    WikidataBotClient.statement(
+      property: 'P404',
+      datavalue: WikidataBotClient.item_value(game_mode_wikidata_ids[category])
+    )
+  end
+  begin
+    wikidata_client.add_statements(item, statements)
+  rescue => error
+    progress_bar.log "ERROR: #{error}"
   end
 
   # Sleep for 1 second between edits to make sure we don't hit the Wikidata

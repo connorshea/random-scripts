@@ -202,7 +202,7 @@ anilist_anime.each do |anime|
   end
 
   # Make sure the anime doesn't already have a AniList ID.
-  existing_claims = WikidataHelper.get_claims(entity: wikidata_item_for_current_anime[:wikidata_id], property: ANILIST_ANIME_PID)
+  existing_claims = WikidataHelper.get_claims(entity: "Q#{wikidata_item_for_current_anime[:wikidata_id]}", property: ANILIST_ANIME_PID)
   if existing_claims != {} && !existing_claims.nil?
     progress_bar.log "This item already has a AniList anime ID."
     progress_bar.increment

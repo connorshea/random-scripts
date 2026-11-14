@@ -23,6 +23,7 @@ end
 
 require 'sparql/client'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 include WikidataHelper
 
 # Killing the script mid-run gets caught by the rescues later in the script
@@ -88,21 +89,6 @@ items_to_check.each do |item|
     end
   end
 
-  begin
-    progress_bar.log "Adding Nintendo Switch platform to item '#{wikidata_id}'..."
-    claim = wikidata_client.create_claim(
-      wikidata_id,
-      "value",
-      'P400',
-      { "entity-type": "item", "numeric-id": 19610114, "id": "Q19610114" }.to_json
-    )
-  rescue MediawikiApi::ApiError => e
-    progress_bar.log e
-    next
-  end
-
-  claim_id = claim.data.dig('claim', 'id')
-
   snak = {
     REFERENCE_PROPERTIES[:stated_in] => [
       {
@@ -150,11 +136,21 @@ items_to_check.each do |item|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Add the platform statement and its reference in a single edit.
   begin
-    wikidata_client.set_reference(claim_id, snak.to_json)
+    progress_bar.log "Adding Nintendo Switch platform to item '#{wikidata_id}'..."
+    wikidata_client.add_statement(
+      wikidata_id,
+      WikidataBotClient.statement(
+        property: 'P400',
+        datavalue: WikidataBotClient.item_value('Q19610114'),
+        references: [snak]
+      )
+    )
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
+    progress_bar.increment
+    next
   end
 
   progress_bar.increment

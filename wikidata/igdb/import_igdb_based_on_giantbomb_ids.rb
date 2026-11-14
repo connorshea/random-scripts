@@ -27,6 +27,7 @@ require 'sparql/client'
 # https://stackoverflow.com/questions/16323571/measure-the-distance-between-two-strings-with-ruby
 require "rubygems/text"
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 
 include WikidataHelper
 
@@ -182,7 +183,7 @@ igdb_games.each do |igdb_game|
   end
 
   # Check for an existing IGDB claim on the Wikidata item.
-  existing_claims = WikidataHelper.get_claims(entity: matching_wikidata_item[:wikidata_id], property: IGDB_PROPERTY)
+  existing_claims = WikidataHelper.get_claims(entity: "Q#{matching_wikidata_item[:wikidata_id]}", property: IGDB_PROPERTY)
   if existing_claims != {} && !existing_claims.nil?
     progress_bar.log "SKIP: This item already has an IGDB ID."
     progress_bar.increment
@@ -191,10 +192,6 @@ igdb_games.each do |igdb_game|
 
   # Add a sleep to avoid hitting the rate limit.
   sleep 1
-
-  # Add the IGDB ID to the relevant Wikidata item.
-  claim = client.create_claim("Q#{matching_wikidata_item[:wikidata_id]}", "value", IGDB_PROPERTY, "\"#{igdb_game[:slug]}\"")
-  claim_id = claim.data.dig('claim', 'id')
 
   snak = {
     REFERENCE_PROPERTIES[:matched_by_identifier_from] => [
@@ -243,11 +240,20 @@ igdb_games.each do |igdb_game|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Add the IGDB ID and its reference to the Wikidata item in a single edit.
   begin
-    wikidata_client.set_reference(claim_id, snak.to_json)
+    client.add_statement(
+      "Q#{matching_wikidata_item[:wikidata_id]}",
+      WikidataBotClient.statement(
+        property: IGDB_PROPERTY,
+        datavalue: WikidataBotClient.string_value(igdb_game[:slug]),
+        references: [snak]
+      )
+    )
   rescue MediawikiApi::ApiError => e
-    progress_bar.log e
+    progress_bar.log "ERROR: Failed to edit Q#{matching_wikidata_item[:wikidata_id]}: #{e}"
+    progress_bar.increment
+    next
   end
 
   # Add the ID to the array of Wikidata IDs we've edited.

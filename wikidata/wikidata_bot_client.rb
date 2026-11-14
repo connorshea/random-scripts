@@ -22,6 +22,69 @@ module WikidataBotClient
     @conn.headers['User-Agent'] = WikidataHelper::USER_AGENT
   end
 
+  #
+  # Add one or more new statements, with their qualifiers and references, to
+  # an entity in a single edit (instead of separate wbcreateclaim,
+  # wbsetqualifier and wbsetreference edits).
+  #
+  # @param entity_id [String] e.g. 'Q42'
+  # @param statements [Array<Hash>] built with WikidataBotClient.statement
+  # @param summary [String, nil] optional edit summary
+  # @return [MediawikiApi::Response]
+  #
+  def add_statements(entity_id, statements, summary: nil)
+    params = {
+      token_type: 'csrf',
+      id: entity_id,
+      data: { 'claims' => statements }.to_json
+    }
+    params[:summary] = summary unless summary.nil?
+    action(:wbeditentity, params)
+  end
+
+  # Convenience wrapper for adding a single statement.
+  def add_statement(entity_id, statement, summary: nil)
+    add_statements(entity_id, [statement], summary: summary)
+  end
+
+  #
+  # Build a statement hash for `add_statements`.
+  #
+  # @param property [String] e.g. 'P5794'
+  # @param datavalue [Hash] e.g. { 'value' => 'foo', 'type' => 'string' },
+  #   see WikidataBotClient.string_value / item_value
+  # @param qualifiers [Hash] snaks keyed by property, in the same format
+  #   `wbsetreference` takes for its `snaks` param
+  # @param references [Array<Hash>] one snaks hash (same format) per reference
+  #
+  def self.statement(property:, datavalue:, qualifiers: {}, references: [])
+    statement = {
+      'type' => 'statement',
+      'rank' => 'normal',
+      'mainsnak' => {
+        'snaktype' => 'value',
+        'property' => property,
+        'datavalue' => datavalue
+      }
+    }
+    statement['qualifiers'] = qualifiers unless qualifiers.empty?
+    statement['references'] = references.map { |snaks| { 'snaks' => snaks } } unless references.empty?
+    statement
+  end
+
+  def self.string_value(value)
+    { 'value' => value.to_s, 'type' => 'string' }
+  end
+
+  # @param qid [String, Integer] e.g. 'Q5' or 5
+  def self.item_value(qid)
+    numeric_id = qid.to_s.delete_prefix('Q').to_i
+    {
+      'value' => { 'entity-type' => 'item', 'numeric-id' => numeric_id, 'id' => "Q#{numeric_id}" },
+      'type' => 'wikibase-entityid'
+    }
+  end
+
   protected
 
   def raw_action(name, params = {})

@@ -112,7 +112,7 @@ items_with_eshop_id_and_no_switch_title_id.each do |item|
   wikidata_id = item.to_h[:item].to_s.sub('http://www.wikidata.org/entity/Q', '')
 
   # Make sure the game doesn't already have a Nintendo Switch title ID.
-  existing_claims = WikidataHelper.get_claims(entity: wikidata_id, property: 'P11072')
+  existing_claims = WikidataHelper.get_claims(entity: "Q#{wikidata_id}", property: 'P11072')
   if existing_claims != {} && !existing_claims.nil?
     progress_bar.log "SKIP: This item already has a Nintendo Switch title ID."
     progress_bar.increment

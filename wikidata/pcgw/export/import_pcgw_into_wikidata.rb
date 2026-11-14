@@ -26,6 +26,7 @@ require 'sparql/client'
 require 'json'
 require_relative './pcgw_helper.rb'
 require_relative '../../wikidata_helper.rb'
+require_relative '../../wikidata_bot_client.rb'
 
 include PcgwHelper
 include WikidataHelper
@@ -161,9 +162,6 @@ rows.each do |row|
     next
   end
 
-  claim = wikidata_client.create_claim(wikidata_id, "value", "P6337", "\"#{pcgw_id}\"")
-  claim_id = claim.data.dig('claim', 'id')
-
   snak = {
     REFERENCE_PROPERTIES[:matched_by_identifier_from] => [
       {
@@ -211,11 +209,20 @@ rows.each do |row|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Add the statement and its reference in a single edit.
   begin
-    wikidata_client.set_reference(claim_id, snak.to_json)
+    wikidata_client.add_statement(
+      wikidata_id,
+      WikidataBotClient.statement(
+        property: 'P6337',
+        datavalue: WikidataBotClient.string_value(pcgw_id),
+        references: [snak]
+      )
+    )
   rescue MediawikiApi::ApiError => e
     progress_bar.log e
+    progress_bar.increment
+    next
   end
 
   successful_pcgw_id_additions += 1

@@ -25,6 +25,7 @@ require 'nokogiri'
 require 'mediawiki_api'
 require 'mediawiki_api/wikidata/wikidata_client'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 require_relative '../wikidata_importer.rb'
 
 include WikidataHelper
@@ -126,15 +127,7 @@ rows.each_with_index do |row, index|
   progress_bar.log "Adding MT Zone ID #{mt_zone_id} to #{name}."
   progress_bar.log "#{row[:item].to_s}"
 
-  # Create the Microtransaction Zone ID statement, and catch an error if it occurs.
-  begin
-    # NOTE: we may want/be able to just pass this as an integer, no quotation marks.
-    claim = wikidata_client.create_claim(item, "value", MT_ZONE_PROPERTY, "\"#{mt_zone_id}\"")
-  rescue => error
-    progress_bar.log "ERROR: #{error}"
-  end
-
-  # Add references to statement
+  # References for the statement.
   reference_snak = {
     REFERENCE_PROPERTIES[:stated_in] => [
       {
@@ -182,11 +175,19 @@ rows.each_with_index do |row, index|
     ]
   }
 
-  progress_bar.log 'Adding reference to statement...'
+  # Create the Microtransaction Zone ID statement with its reference in a single
+  # edit, and catch an error if it occurs.
   begin
-    wikidata_client.set_reference(claim.data.dig('claim', 'id'), reference_snak.to_json)
+    wikidata_client.add_statement(
+      item,
+      WikidataBotClient.statement(
+        property: MT_ZONE_PROPERTY,
+        datavalue: WikidataBotClient.string_value(mt_zone_id),
+        references: [reference_snak]
+      )
+    )
   rescue MediawikiApi::ApiError => e
-    progress_bar.log e
+    progress_bar.log "ERROR: #{e}"
   end
 
   # Sleep for 2 seconds between edits to make sure we don't hit the Wikidata

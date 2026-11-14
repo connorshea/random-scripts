@@ -221,7 +221,7 @@ vglist_games.each do |game|
   wikidata_item_for_current_game = wikidata_items.find { |item| item[:wikidata_id] == game['wikidata_id'].to_s }
 
   # Make sure the game doesn't already have a vglist ID.
-  existing_claims = WikidataHelper.get_claims(entity: wikidata_item_for_current_game[:wikidata_id], property: 'P8351')
+  existing_claims = WikidataHelper.get_claims(entity: "Q#{wikidata_item_for_current_game[:wikidata_id]}", property: 'P8351')
   if existing_claims != {} && !existing_claims.nil?
     progress_bar.log "SKIP: This item already has a vglist ID."
     progress_bar.increment

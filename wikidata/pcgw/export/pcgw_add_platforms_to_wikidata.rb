@@ -14,6 +14,7 @@ end
 require 'sparql/client'
 require 'json'
 require_relative './pcgw_helper.rb'
+require_relative '../../wikidata_bot_client.rb'
 
 include PcgwHelper
 
@@ -83,78 +84,71 @@ rows.each do |row|
   wikidata_id = key_hash[:item].to_s.sub('http://www.wikidata.org/entity/', '')
 
   platforms.select! { |platform| platform_wikidata_ids.keys.include?(platform) }
-  platforms.each do |platform|
-    if platform == 'Mac OS'
-      progress_bar.log 'Mac OS, skipping.'
-      next
-    end
-    progress_bar.log "Adding #{platform} to #{key_hash[:itemLabel]}"
-    wikidata_platform_identifier = {
-      "entity-type": "item",
-      "numeric-id": platform_wikidata_ids[platform.to_sym],
-      "id": "Q#{platform_wikidata_ids[platform.to_sym]}"
-    }
+  next if platforms.empty?
 
-    claim = wikidata_client.create_claim(wikidata_id, "value", "P400", wikidata_platform_identifier.to_json)
-
-    # Get the claim ID returned from the create_claim method.
-    claim_id = claim.data.dig('claim', 'id')
-
-    snak = {
-      REFERENCE_PROPERTIES[:stated_in] => [
-        {
-          "snaktype" => "value",
-          "property" => REFERENCE_PROPERTIES[:stated_in],
-          "datatype" => "wikibase-item",
-          "datavalue" => {
-            "value" => {
-              "entity-type" => "item",
-              "numeric-id" => PCGAMINGWIKI_QID,
-              "id" => "Q#{PCGAMINGWIKI_QID}"
-            },
-            "type" => "wikibase-entityid"
-          }
+  reference_snaks = {
+    REFERENCE_PROPERTIES[:stated_in] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:stated_in],
+        "datatype" => "wikibase-item",
+        "datavalue" => {
+          "value" => {
+            "entity-type" => "item",
+            "numeric-id" => PCGAMINGWIKI_QID,
+            "id" => "Q#{PCGAMINGWIKI_QID}"
+          },
+          "type" => "wikibase-entityid"
         }
-      ],
-      REFERENCE_PROPERTIES[:retreived] => [
-        {
-          "snaktype" => "value",
-          "property" => REFERENCE_PROPERTIES[:retreived],
-          "datatype" => "time",
-          "datavalue" => {
-            "value" => {
-              "time" => Date.today.strftime("+%Y-%m-%dT%H:%M:%SZ"),
-              "timezone" => 0,
-              "before" => 0,
-              "after" => 0,
-              "precision" => 11,
-              "calendarmodel" => "http://www.wikidata.org/entity/Q1985727"
-            },
-            "type" => "time"
-          }
+      }
+    ],
+    REFERENCE_PROPERTIES[:retreived] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:retreived],
+        "datatype" => "time",
+        "datavalue" => {
+          "value" => {
+            "time" => Date.today.strftime("+%Y-%m-%dT%H:%M:%SZ"),
+            "timezone" => 0,
+            "before" => 0,
+            "after" => 0,
+            "precision" => 11,
+            "calendarmodel" => "http://www.wikidata.org/entity/Q1985727"
+          },
+          "type" => "time"
         }
-      ],
-      REFERENCE_PROPERTIES[:reference_url] => [
-        {
-          "snaktype" => "value",
-          "property" => REFERENCE_PROPERTIES[:reference_url],
-          "datatype" => "url",
-          "datavalue" => {
-            "value" => "https://www.pcgamingwiki.com/wiki/#{key_hash[:pcgw_id].to_s}",
-            "type" => "string"
-          }
+      }
+    ],
+    REFERENCE_PROPERTIES[:reference_url] => [
+      {
+        "snaktype" => "value",
+        "property" => REFERENCE_PROPERTIES[:reference_url],
+        "datatype" => "url",
+        "datavalue" => {
+          "value" => "https://www.pcgamingwiki.com/wiki/#{key_hash[:pcgw_id].to_s}",
+          "type" => "string"
         }
-      ]
-    }
+      }
+    ]
+  }
 
-    progress_bar.log 'Adding reference to statement...'
-    begin
-      wikidata_client.set_reference(claim_id, snak.to_json)
-    rescue MediawikiApi::ApiError => e
-      progress_bar.log e
-    end
-    sleep 1
+  # Add all the platform statements, each with its reference, in a single edit.
+  statements = platforms.map do |platform|
+    WikidataBotClient.statement(
+      property: 'P400',
+      datavalue: WikidataBotClient.item_value(platform_wikidata_ids[platform.to_sym]),
+      references: [reference_snaks]
+    )
   end
+
+  progress_bar.log "Adding #{platforms.join(', ')} to #{key_hash[:itemLabel]}"
+  begin
+    wikidata_client.add_statements(wikidata_id, statements)
+  rescue MediawikiApi::ApiError => e
+    progress_bar.log e
+  end
+  sleep 1
 end
 
 progress_bar.finish unless progress_bar.finished?
