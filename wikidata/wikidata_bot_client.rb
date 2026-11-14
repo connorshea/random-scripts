@@ -1,6 +1,6 @@
 # Patches the mediawiki_api client to follow Wikidata's bot etiquette:
 #
-# - Sends `maxlag=5` with every edit and waits (indefinitely) while the servers
+# - Sends `maxlag=5` (or $WIKIDATA_MAXLAG) with every edit and waits (indefinitely) while the servers
 #   are lagged. Reads and logins don't send maxlag, so they aren't blocked.
 #   https://www.mediawiki.org/wiki/Manual:Maxlag_parameter
 # - Flags edits as bot edits (`bot=1`).
@@ -14,7 +14,14 @@
 require_relative './wikidata_helper.rb'
 
 module WikidataBotClient
-  MAXLAG = 5
+  # Override with e.g. `WIKIDATA_MAXLAG=10`. Values above 5 go against
+  # Wikidata's bot policy, so only raise it briefly.
+  MAXLAG = begin
+    value = ENV.fetch('WIKIDATA_MAXLAG', '5')
+    Integer(value, 10).tap { |v| raise ArgumentError unless v.positive? }
+  rescue ArgumentError
+    abort "WIKIDATA_MAXLAG must be a positive integer, got #{value.inspect}"
+  end
   # Max retries for HTTP 429/5xx errors. Maxlag waits are unlimited, since
   # lag can last for hours; Ctrl-C to stop.
   MAX_HTTP_ATTEMPTS = 10
