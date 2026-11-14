@@ -130,6 +130,20 @@ def steam_id_from_url(url)
 end
 
 IGDB_PROPERTY = 'P5794'
+IGDB_NUMERIC_GAME_PID = 'P9043'
+
+# Qualifier snaks for the IGDB numeric game ID.
+def igdb_numeric_id_qualifier(igdb_numeric_id)
+  {
+    IGDB_NUMERIC_GAME_PID => [
+      {
+        "snaktype" => "value",
+        "property" => IGDB_NUMERIC_GAME_PID,
+        "datavalue" => WikidataBotClient.string_value(igdb_numeric_id)
+      }
+    ]
+  }
+end
 STEAM_QID = 337535
 
 REFERENCE_PROPERTIES = {
@@ -289,30 +303,17 @@ igdb_games.each do |igdb_game|
     ]
   }
 
-  # Add the IGDB ID claim and its reference to the Wikidata item in a single
-  # edit, so a claim can never end up without its reference.
-  claim = {
-    "type" => "statement",
-    "rank" => "normal",
-    "mainsnak" => {
-      "snaktype" => "value",
-      "property" => IGDB_PROPERTY,
-      "datavalue" => {
-        "value" => igdb_game[:slug],
-        "type" => "string"
-      }
-    },
-    "references" => [
-      { "snaks" => reference_snaks }
-    ]
-  }
-
+  # Add the IGDB ID claim, its numeric ID qualifier, and its reference to the
+  # Wikidata item in a single edit.
   begin
-    client.action(
-      :wbeditentity,
-      token_type: "csrf",
-      id: "Q#{matching_wikidata_item[:wikidata_id]}",
-      data: { "claims" => [claim] }.to_json
+    client.add_statement(
+      "Q#{matching_wikidata_item[:wikidata_id]}",
+      WikidataBotClient.statement(
+        property: IGDB_PROPERTY,
+        datavalue: WikidataBotClient.string_value(igdb_game[:slug]),
+        qualifiers: igdb_numeric_id_qualifier(igdb_game[:id]),
+        references: [reference_snaks]
+      )
     )
   rescue MediawikiApi::ApiError => e
     progress_bar.log "ERROR: Failed to edit Q#{matching_wikidata_item[:wikidata_id]}: #{e}"

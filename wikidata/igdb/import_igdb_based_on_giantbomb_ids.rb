@@ -114,6 +114,7 @@ def wikidata_client
 end
 
 IGDB_PROPERTY = 'P5794'
+IGDB_NUMERIC_GAME_PID = 'P9043'
 GIANTBOMB_QID = 1657282
 
 REFERENCE_PROPERTIES = {
@@ -240,13 +241,23 @@ igdb_games.each do |igdb_game|
     ]
   }
 
-  # Add the IGDB ID and its reference to the Wikidata item in a single edit.
+  # Add the IGDB ID, its numeric ID qualifier, and its reference to the
+  # Wikidata item in a single edit.
   begin
     client.add_statement(
       "Q#{matching_wikidata_item[:wikidata_id]}",
       WikidataBotClient.statement(
         property: IGDB_PROPERTY,
         datavalue: WikidataBotClient.string_value(igdb_game[:slug]),
+        qualifiers: {
+          IGDB_NUMERIC_GAME_PID => [
+            {
+              "snaktype" => "value",
+              "property" => IGDB_NUMERIC_GAME_PID,
+              "datavalue" => WikidataBotClient.string_value(igdb_game[:id])
+            }
+          ]
+        },
         references: [snak]
       )
     )
