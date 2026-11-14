@@ -18,6 +18,9 @@ module WikidataBotClient
   # lag can last for hours; Ctrl-C to stop.
   MAX_HTTP_ATTEMPTS = 10
   MAX_WAIT = 60
+  # When the lag is well above MAXLAG, start backing off from a longer wait.
+  HIGH_LAG = 10
+  HIGH_LAG_MIN_WAIT = 30
 
   def initialize(*args, **kwargs)
     super
@@ -102,7 +105,9 @@ module WikidataBotClient
       raise unless e.code == 'maxlag'
 
       lag_attempts += 1
-      wait_before_retry("Wikidata is lagged (#{e.info})", lag_attempts)
+      wait = lag_wait(e, lag_attempts)
+      warn "#{Time.now.strftime('%H:%M:%S')} Wikidata is lagged (#{e.info}), retrying in #{wait}s (attempt #{lag_attempts})..."
+      sleep wait
       retry
     rescue MediawikiApi::HttpError => e
       http_attempts += 1
@@ -114,6 +119,15 @@ module WikidataBotClient
   end
 
   private
+
+  # Back off 5s, 10s, 15s... up to MAX_WAIT, but wait at least
+  # HIGH_LAG_MIN_WAIT when the lag is above HIGH_LAG.
+  def lag_wait(error, attempts)
+    wait = [5 * attempts, MAX_WAIT].min
+    lag = error.response&.data&.dig('lag') || error.info[/([\d.]+) seconds lagged/, 1]
+    wait = [wait, HIGH_LAG_MIN_WAIT].max if lag && lag.to_f > HIGH_LAG
+    wait
+  end
 
   def wait_before_retry(reason, attempts, max: nil)
     wait = [5 * attempts, MAX_WAIT].min
