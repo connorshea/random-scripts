@@ -11,6 +11,7 @@ gemfile do
 end
 
 require './wikidata/pcgw/dumper/pcgw_metadata_importer'
+require_relative '../../wikidata_bot_client.rb'
 
 # Import MobyGames IDs, IGDB IDs, and HLTB IDs into Wikidata by matching on their PCGW IDs.
 

@@ -25,6 +25,7 @@ end
 require 'json'
 require 'sparql/client'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 
 include WikidataHelper
 

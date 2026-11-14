@@ -27,6 +27,7 @@ end
 require 'json'
 require 'sparql/client'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 require 'open-uri'
 require "graphql/client"
 require "graphql/client/http"

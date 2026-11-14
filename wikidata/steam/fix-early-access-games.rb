@@ -34,6 +34,7 @@ require 'net/http'
 require 'mediawiki_api'
 require 'mediawiki_api/wikidata/wikidata_client'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 
 include WikidataHelper
 

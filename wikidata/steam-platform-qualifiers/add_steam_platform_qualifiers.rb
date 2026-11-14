@@ -31,6 +31,7 @@ require 'open-uri'
 require 'net/http'
 require 'mediawiki_api'
 require 'mediawiki_api/wikidata/wikidata_client'
+require_relative '../wikidata_bot_client.rb'
 
 # Returns a list of Wikidata items with a Steam AppID and no platform qualifier for it.
 def query

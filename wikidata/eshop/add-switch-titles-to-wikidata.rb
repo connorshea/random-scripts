@@ -17,6 +17,7 @@ require 'json'
 require 'sparql/client'
 require 'open-uri'
 require_relative '../wikidata_helper.rb'
+require_relative '../wikidata_bot_client.rb'
 include WikidataHelper
 
 # Killing the script mid-run gets caught by the rescues later in the script
