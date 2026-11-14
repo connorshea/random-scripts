@@ -1,7 +1,8 @@
 # Patches the mediawiki_api client to follow Wikidata's bot etiquette:
 #
-# - Sends `maxlag=5` with every request and waits/retries when the servers are
-#   lagged. https://www.mediawiki.org/wiki/Manual:Maxlag_parameter
+# - Sends `maxlag=5` with every edit and waits (indefinitely) while the servers
+#   are lagged. Reads and logins don't send maxlag, so they aren't blocked.
+#   https://www.mediawiki.org/wiki/Manual:Maxlag_parameter
 # - Sends a descriptive User-Agent. https://meta.wikimedia.org/wiki/User-Agent_policy
 # - Retries on HTTP 429 and 5xx responses.
 #
@@ -13,8 +14,9 @@ require_relative './wikidata_helper.rb'
 
 module WikidataBotClient
   MAXLAG = 5
-  # Lag can persist for a while, so be patient before giving up.
-  MAX_ATTEMPTS = 50
+  # Max retries for HTTP 429/5xx errors. Maxlag waits are unlimited, since
+  # lag can last for hours; Ctrl-C to stop.
+  MAX_HTTP_ATTEMPTS = 10
   MAX_WAIT = 60
 
   def initialize(*args, **kwargs)
@@ -88,28 +90,35 @@ module WikidataBotClient
   protected
 
   def raw_action(name, params = {})
-    attempts = 0
-    begin
-      attempts += 1
-      super(name, params.merge(maxlag: MAXLAG))
-    rescue MediawikiApi::ApiError => e
-      raise unless e.code == 'maxlag' && attempts < MAX_ATTEMPTS
+    # Only edits (requests that need a token) send maxlag. Logins, token
+    # fetches and reads use `token_type: false`.
+    params = params.merge(maxlag: MAXLAG) unless params[:token_type] == false
 
-      wait_before_retry("Wikidata is lagged (#{e.info})", attempts)
+    lag_attempts = 0
+    http_attempts = 0
+    begin
+      super(name, params)
+    rescue MediawikiApi::ApiError => e
+      raise unless e.code == 'maxlag'
+
+      lag_attempts += 1
+      wait_before_retry("Wikidata is lagged (#{e.info})", lag_attempts)
       retry
     rescue MediawikiApi::HttpError => e
-      raise unless (e.status == 429 || e.status >= 500) && attempts < MAX_ATTEMPTS
+      http_attempts += 1
+      raise unless (e.status == 429 || e.status >= 500) && http_attempts < MAX_HTTP_ATTEMPTS
 
-      wait_before_retry("Wikidata returned HTTP #{e.status}", attempts)
+      wait_before_retry("Wikidata returned HTTP #{e.status}", http_attempts, max: MAX_HTTP_ATTEMPTS)
       retry
     end
   end
 
   private
 
-  def wait_before_retry(reason, attempts)
+  def wait_before_retry(reason, attempts, max: nil)
     wait = [5 * attempts, MAX_WAIT].min
-    warn "#{reason}, retrying in #{wait}s (attempt #{attempts}/#{MAX_ATTEMPTS})..."
+    progress = max ? "attempt #{attempts}/#{max}" : "attempt #{attempts}"
+    warn "#{Time.now.strftime('%H:%M:%S')} #{reason}, retrying in #{wait}s (#{progress})..."
     sleep wait
   end
 end
