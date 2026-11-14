@@ -3,6 +3,7 @@
 # - Sends `maxlag=5` with every edit and waits (indefinitely) while the servers
 #   are lagged. Reads and logins don't send maxlag, so they aren't blocked.
 #   https://www.mediawiki.org/wiki/Manual:Maxlag_parameter
+# - Flags edits as bot edits (`bot=1`).
 # - Sends a descriptive User-Agent. https://meta.wikimedia.org/wiki/User-Agent_policy
 # - Retries on HTTP 429 and 5xx responses.
 #
@@ -93,9 +94,11 @@ module WikidataBotClient
   protected
 
   def raw_action(name, params = {})
-    # Only edits (requests that need a token) send maxlag. Logins, token
-    # fetches and reads use `token_type: false`.
-    params = params.merge(maxlag: MAXLAG) unless params[:token_type] == false
+    # Only edits (requests that need a token) send maxlag and are flagged as
+    # bot edits. Logins, token fetches and reads use `token_type: false`.
+    # `bot` only takes effect if the account has the bot right (for bot
+    # passwords, the "High-volume (bot) access" grant).
+    params = params.merge(maxlag: MAXLAG, bot: 1) unless params[:token_type] == false
 
     lag_attempts = 0
     http_attempts = 0
