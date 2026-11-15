@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'date'
 require 'json'
 require 'net/http'
 require_relative './steam_app_list.rb'
@@ -17,7 +18,7 @@ module SteamPlatforms
   PATH = File.join(__dir__, 'data', 'steam_platforms.jsonl')
   BATCH_SIZE = 100
 
-  # Steam's platform flags => Wikidata items.
+  # Steam's platform flags => Wikidata items. Steam only has these three.
   PLATFORM_QIDS = {
     'windows' => 'Q1406',
     'mac' => 'Q14116',
@@ -39,6 +40,21 @@ module SteamPlatforms
   end
 
   # @param app_ids [Array<String>]
+  #
+  # @return [Hash{String => String}] app ID => the date (YYYY-MM-DD) its
+  #   platforms were fetched. Lines from before dates were recorded get the
+  #   cache file's modification date.
+  #
+  def self.load_retrieved
+    return {} unless File.exist?(PATH)
+
+    fallback = File.mtime(PATH).strftime('%Y-%m-%d')
+    File.foreach(PATH).to_h do |line|
+      app = JSON.parse(line)
+      [app['appid'].to_s, app['retrieved'] || fallback]
+    end
+  end
+
   def self.fetch_missing(app_ids)
     cached = load
     missing = app_ids.map(&:to_s).uniq.reject { |id| cached.key?(id) }
@@ -54,7 +70,7 @@ module SteamPlatforms
           abort "[#{SteamAppList.timestamp}] Stopped. What was fetched is saved; run it again to continue." if platforms.nil?
 
           batch.each do |id|
-            file.puts JSON.generate({ 'appid' => id.to_i, 'platforms' => platforms[id] })
+            file.puts JSON.generate({ 'appid' => id.to_i, 'platforms' => platforms[id], 'retrieved' => Date.today.iso8601 })
           end
           file.flush
           SteamAppList.log "#{[(i + 1) * BATCH_SIZE, missing.count].min}/#{missing.count} fetched."

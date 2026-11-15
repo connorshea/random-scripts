@@ -1,6 +1,6 @@
 # IGDB
 
-Scripts that work with a local dump of IGDB (the Internet Game Database) and Wikidata's IGDB game ID (P5794).
+Scripts that work with a local dump of IGDB (the Internet Game Database) and Wikidata's IGDB game ID (P5794), and with Steam data.
 
 ## Steam, Epic Games Store and GOG IDs from IGDB
 
@@ -91,3 +91,37 @@ The last three rules send candidates to the review file rather than skipping the
 Names are compared after removing ™, ® and ©, NFKC normalization, lowercasing, removing a trailing "(video game)", treating "&" as "and", and removing everything that isn't a letter or digit. Names of 8 or more characters also match within a Levenshtein distance of 2, if their lengths differ by no more than 2.
 
 The slug check catches IGDB linking a game to a bundle (`cossacks_ii_anthology` for Cossacks II) or to an unrelated product. A slug resembles the game when, after removing Epic's 6-character hex suffix and all punctuation, it contains the IGDB slug or name, is contained in it, or is within a Levenshtein distance of 2. Some correct links fail this, like `silent-hunter-3` for Silent Hunter III, so check the review file.
+
+## Platforms from Steam IDs
+
+`steam_platforms_quickstatements.rb` generates a QuickStatements batch that adds platform (P400) statements to video games that have a Steam application ID (P1733) but no platform statement. The platforms come from what Steam lists for the app, so they're only ever Windows (Q1406), macOS (Q14116) and Linux (Q388).
+
+### Steps
+
+Run these from this folder.
+
+1. Pull the items from QLever:
+
+   ```sh
+   curl -sS --compressed https://qlever.dev/api/wikidata -H 'Accept: text/tab-separated-values' \
+     --data-urlencode "query@wd-steam-no-platform.rq" -o data/wd-steam-no-platform.tsv
+   ```
+
+   `wd-steam-no-platform.rq` returns every instance of (P31) video game (Q7889) with a non-deprecated Steam ID and no P400 statement of any rank. Items that already have a platform are left alone.
+
+2. `ruby steam_platforms_quickstatements.rb data/wd-steam-no-platform.tsv` writes `data/steam-platforms-ids-to-check.txt`, the Steam IDs whose platforms haven't been fetched yet.
+
+3. `ruby steam_platforms_fetch.rb data/steam-platforms-ids-to-check.txt` fetches them into `data/steam_platforms.jsonl`, the same cache the IGDB store ID generator uses.
+
+4. Run step 2 again. It writes:
+
+   - `data/steam-platforms.qs.tsv`: the batch.
+   - `data/steam-platforms-skipped.tsv`: items that weren't added, and why, for example because Steam didn't return the app.
+
+Each statement is referenced with stated in (P248) Steam (Q337535), the Steam ID, and retrieved (P813) set to the day the platforms were fetched:
+
+```
+Q10840122	P400	Q1406	S248	Q337535	S1733	"1657240"	S813	+2026-11-15T00:00:00Z/11
+```
+
+An item with several Steam IDs gets the platforms of all of them, and each statement is referenced with every Steam ID that lists that platform.

@@ -1,0 +1,14 @@
+# Every item that's an instance of (P31) video game (Q7889), with a Steam
+# application ID (P1733, not deprecated) and no platform (P400) statement of
+# any rank, with its Steam IDs.
+PREFIX wd: <http://www.wikidata.org/entity/>
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+PREFIX wikibase: <http://wikiba.se/ontology#>
+SELECT ?item ?steam WHERE {
+  ?item wdt:P31 wd:Q7889 .
+  ?item p:P1733 ?st . ?st ps:P1733 ?steam ; wikibase:rank ?rank .
+  FILTER(?rank != wikibase:DeprecatedRank)
+  FILTER NOT EXISTS { ?item p:P400 [] }
+}
