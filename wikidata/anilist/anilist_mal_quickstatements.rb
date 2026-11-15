@@ -109,6 +109,11 @@ end
 def read_sparql_tsv(path)
   lines = File.readlines(path, chomp: true)
   abort "#{path} doesn't look like a SPARQL TSV result:\n#{lines.first(5).join("\n")}" unless lines.first&.start_with?('?')
+  # QLever reports an error during export by appending it to the truncated
+  # result, since the HTTP status has already been sent.
+  if (error_line = lines.find { |l| l.include?('An error has occurred while exporting the query result') })
+    abort "#{path} is truncated, the query failed partway through:\n#{error_line}"
+  end
 
   header = lines.shift.split("\t").map { |h| h.delete_prefix('?') }
   lines.reject(&:empty?).map { |line| header.zip(line.split("\t", -1)).to_h }
