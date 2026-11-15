@@ -8,7 +8,7 @@ Nothing here edits Wikidata. The batches are for you to review and run in QuickS
 
 - A dump of every AniList anime or manga, downloaded with `anilist_dump.rb` (see step 1).
 - Every AniList and MAL ID on Wikidata, plus the labels and aliases of the items that have only one of them, from QLever (see step 2).
-- MAL's titles for the candidates, fetched from Jikan or MAL's official API (see step 4).
+- MAL's titles for the candidates, fetched from MAL's official API (see step 4).
 
 Everything is written to `data/`. The `.jsonl` and `.tsv` files there are gitignored.
 
@@ -31,9 +31,7 @@ Run these from this folder. Replace `manga` with `anime` for anime.
 
 3. `ruby anilist_mal_quickstatements.rb manga data/wd-anilist-mal-manga-ids.tsv data/wd-anilist-mal-manga-names.tsv` finds the candidates. It writes the MAL IDs they need checked to `data/anilist-mal-manga-mal-ids-to-check.txt`. The first time, every candidate is skipped because no MAL titles are cached yet.
 
-4. `ruby jikan_fetch.rb manga` fetches MAL's titles for those IDs from Jikan (`https://api.jikan.moe/v4/manga/<id>`, an unofficial MAL API that needs no key). The results go to `data/mal_manga.jsonl`. That file doubles as a cache, so each ID is only fetched once, and an interrupted run can just be started again. It sends one request every 1.25 seconds to stay under Jikan's 60 a minute, so 1,000 IDs take about 20 minutes. If it says some IDs couldn't be fetched, run it again.
-
-   If Jikan is down, use MAL's official API instead: `MAL_CLIENT_ID=... ruby jikan_fetch.rb manga`. Register a client at https://myanimelist.net/apiconfig (any app type; only the client ID is needed, not the secret). It returns the same titles into the same cache, so the two can be mixed.
+4. `MAL_CLIENT_ID=... ruby mal_fetch.rb manga` fetches MAL's titles for those IDs from MAL's official API (`https://api.myanimelist.net/v2/manga/<id>`). Get a client ID by registering a client at https://myanimelist.net/apiconfig (any app type; only the client ID is needed, not the secret). The results go to `data/mal_manga.jsonl`. That file doubles as a cache, so each ID is only fetched once, and an interrupted run can just be started again. It sends one request every 1.25 seconds, so 1,000 IDs take about 20 minutes. If it says some IDs couldn't be fetched, run it again.
 
 5. Run step 3 again. This time it writes the batch.
 
@@ -69,8 +67,7 @@ Names are compared after NFKC normalization, lowercasing and removing everything
 
 ## API notes
 
-- `anilist_api.rb` and `jikan_api.rb` send a User-Agent naming this repository.
+- `anilist_api.rb` and `mal_titles.rb` send a User-Agent naming this repository.
 - AniList: see https://docs.anilist.co/guide/rate-limiting. The client paces requests to `X-RateLimit-Limit`, waits for `X-RateLimit-Reset` when `X-RateLimit-Remaining` hits 0, and on a 429 waits for `Retry-After`. AniList won't page past 5,000 results, so the dump walks the ID space in blocks of 2,500 IDs with `id_in`.
-- MAL's official API is paced the same way as Jikan. The client ID is sent in the `X-MAL-CLIENT-ID` header and never logged. A 401 or 403 means the client ID is wrong.
-- Jikan: 429s wait for `Retry-After`, or 60 seconds. 5xx errors (which Jikan returns when MAL is slow) and timeouts back off with growing waits. An ID is left for the next run after 5 retries.
+- MAL: the client ID is sent in the `X-MAL-CLIENT-ID` header and never logged. A 401 or 403 means the client ID is wrong, and stops the run. 429s wait for `Retry-After`, or 60 seconds. 5xx errors and timeouts back off with growing waits. An ID is left for the next run after 5 retries, and the run stops if 3 IDs in a row fail.
 - Both clients log with timestamps and say when, and for how long, they're waiting beyond the usual spacing.

@@ -33,11 +33,10 @@
 #   titles or Wikidata names, so AniList's link to MAL is checked too,
 # - both IDs match the properties' format constraint, [1-9]\d*.
 #
-# MAL titles come from data/mal_<type>.jsonl, a cache of Jikan or MAL API
-# responses. The generator writes the MAL IDs it needs to
+# MAL titles come from data/mal_<type>.jsonl, a cache of MAL API responses. The generator writes the MAL IDs it needs to
 # data/anilist-mal-<type>-mal-ids-to-check.txt;
 # candidates whose MAL titles aren't cached yet are skipped. So the workflow
-# is: run this, run `ruby jikan_fetch.rb <type>`, then run this again.
+# is: run this, run `MAL_CLIENT_ID=... ruby mal_fetch.rb <type>`, then run this again.
 #
 # Each statement gets a reference with the other ID it was derived from (the
 # item's AniList ID for a new MAL ID, the item's MAL ID for a new AniList ID)
@@ -58,7 +57,7 @@
 require 'json'
 require 'rubygems/text'
 require_relative './anilist_api.rb'
-require_relative './jikan_api.rb'
+require_relative './mal_titles.rb'
 
 PROPERTIES = {
   'ANIME' => { anilist: 'P8729', mal: 'P4086' },
@@ -162,7 +161,7 @@ anilist_by_mal_id = anilist.reject { |media| media['idMal'].nil? }.group_by { |m
 # QuickStatements time value, day precision.
 retrieved = File.mtime(AniListAPI.dump_path(type)).utc.strftime('+%Y-%m-%dT00:00:00Z/11')
 puts "#{anilist.count} #{kind} in the AniList dump, #{anilist_by_mal_id.count} distinct MAL IDs."
-mal = JikanAPI.load(kind)
+mal = MALTitles.load(kind)
 puts "#{mal.count} MAL #{kind} entries cached."
 
 # --- Wikidata IDs ---
@@ -270,7 +269,7 @@ candidates.each do |qid, pid, value, entry|
     mal_entry = mal[mal_id]
     if mal_entry.nil?
       not_fetched += 1
-      skipped << [qid, pid, value, "MAL #{kind} #{mal_id} not checked yet, run jikan_fetch.rb #{kind}"]
+      skipped << [qid, pid, value, "MAL #{kind} #{mal_id} not checked yet, run mal_fetch.rb #{kind}"]
       next
     elsif mal_entry['status'] == 404
       skipped << [qid, pid, value, "MAL #{kind} #{mal_id} doesn't exist on MyAnimeList (deleted or merged?)"]
@@ -316,5 +315,5 @@ puts "#{mismatches.count} name mismatches to review in #{mismatches_path}."
 puts "#{skipped.count} skipped, see #{skipped_path}."
 if not_fetched.positive?
   puts "#{not_fetched} candidates were skipped because their MAL titles aren't cached yet. Fetch them with " \
-       "`ruby #{File.join(__dir__, 'jikan_fetch.rb')} #{kind}`, then run this again."
+       "`MAL_CLIENT_ID=... ruby #{File.join(__dir__, 'mal_fetch.rb')} #{kind}`, then run this again."
 end
