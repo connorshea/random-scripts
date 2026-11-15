@@ -13,12 +13,20 @@
 # don't look right.
 #
 # Results are cached in data/epic_slugs.jsonl, one slug per line, so a stopped
-# run continues where it left off. Then it writes
-# data/epic-slugs-unresolved.tsv: the batch rows whose slug didn't resolve.
+# run continues where it left off. Then it writes:
+#
+# - data/epic-slugs-unresolved.tsv: the batch rows whose slug didn't resolve.
+# - <batch>.resolved.qs.tsv (e.g. data/igdb-epic-ids.resolved.qs.tsv): the
+#   batch with only the items whose slug resolved to a product page. Every
+#   line for an item that didn't resolve, wasn't checked, or resolved to an
+#   offer page (an edition or DLC, e.g. a "digital deluxe edition", rather than
+#   the game) is dropped, including its P750 statement. This is the batch to
+#   run in QuickStatements.
 
 require 'date'
 require 'json'
 require 'net/http'
+require 'set'
 require_relative './steam_app_list.rb'
 
 trap("SIGINT") { exit! }
@@ -184,3 +192,18 @@ page_types = rows.filter_map { |_qid, slug| cache.dig(slug, 'mapping', 'pageType
 log "#{rows.count - unresolved.count - unchecked} resolved (page types: #{page_types.map { |t, n| "#{t} #{n}" }.join(', ')}), " \
     "#{unresolved.count} didn't, #{unchecked} not checked."
 log "Wrote the unresolved ones to #{OUT_PATH}." if unresolved.any?
+
+offers = rows.select { |_qid, slug| cache.dig(slug, 'mapping', 'pageType') == 'offer' }
+offers.each { |qid, slug| log "Skipping #{qid} #{slug}: it's an offer page, not a product page." }
+resolved_qids = rows.filter_map { |qid, slug| qid if cache.dig(slug, 'found') }.to_set - offers.map(&:first)
+resolved_path = batch_path.sub(/(\.qs)?\.tsv\z/, '') + '.resolved.qs.tsv'
+kept = 0
+File.open(resolved_path, 'w') do |file|
+  File.foreach(batch_path) do |line|
+    next unless resolved_qids.include?(line.split("\t", 2).first)
+
+    file.write(line)
+    kept += 1
+  end
+end
+log "Wrote #{kept} lines for #{resolved_qids.count} items to #{resolved_path}."
