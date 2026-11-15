@@ -40,13 +40,10 @@ IGDB_NUMERIC_GAME_PID = 'P9043'
 # Query for finding all IGDB IDs without the numeric qualifier.
 def query
   return <<-SPARQL
-    SELECT ?item ?itemLabel ?igdbId ?numericId WHERE {
-      OPTIONAL {
-        ?item p:#{IGDB_GAME_PID} ?statement. # Get the statement of the IGDB ID
-        ?statement ps:#{IGDB_GAME_PID} ?igdbId. # Get the actual ID
-        FILTER(NOT EXISTS { ?statement pq:#{IGDB_NUMERIC_GAME_PID} ?numericId. }) # Get rid of anything with a numeric IGDB ID qualifier.
-      }
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "en,en". }
+    SELECT ?item ?igdbId WHERE {
+      ?item p:#{IGDB_GAME_PID} ?statement. # Get the statement of the IGDB ID
+      ?statement ps:#{IGDB_GAME_PID} ?igdbId. # Get the actual ID
+      FILTER(NOT EXISTS { ?statement pq:#{IGDB_NUMERIC_GAME_PID} []. }) # Get rid of anything with a numeric IGDB ID qualifier.
     }
   SPARQL
 end
@@ -57,7 +54,7 @@ def get_wikidata_items_with_no_igdb_numeric_id_from_sparql
   client = SPARQL::Client.new(
     sparql_endpoint,
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
+    headers: { 'User-Agent': WikidataHelper::USER_AGENT }
   )
 
   rows = client.query(query)
@@ -70,6 +67,8 @@ puts "Reading data from igdb_games.json."
 igdb_games = JSON.load(File.open(File.join(File.dirname(__FILE__), 'igdb_games.json'))).map do |game|
   game.transform_keys(&:to_sym)
 end
+# Index by slug, so each lookup doesn't scan all ~320k games.
+igdb_games_by_slug = igdb_games.to_h { |game| [game[:slug], game] }
 
 # Authenticate with Wikidata.
 wikidata_client = MediawikiApi::Wikidata::WikidataClient.new "https://www.wikidata.org/w/api.php"
@@ -84,7 +83,6 @@ wikidata_items = []
 wikidata_rows.each do |row|
   key_hash = row.to_h
   wikidata_item = {
-    name: key_hash[:itemLabel].to_s,
     wikidata_id: key_hash[:item].to_s.sub('http://www.wikidata.org/entity/Q', ''),
     igdb_id: key_hash[:igdbId].to_s
   }
@@ -101,8 +99,8 @@ wikidata_items.each do |wikidata_item|
   igdb_id = wikidata_item[:igdb_id]
 
   # Find the numeric IGDB ID associated with the Wikidata item's IGDB ID.
-  igdb_game = igdb_games.find { |igdb_game| igdb_game[:slug] == igdb_id }
-  
+  igdb_game = igdb_games_by_slug[igdb_id]
+
   if igdb_game.nil?
     progress_bar.log 'No IGDB numeric ID could be derived from the IGDB ID.'
     progress_bar.increment
@@ -111,24 +109,27 @@ wikidata_items.each do |wikidata_item|
 
   igdb_numeric_id = igdb_game[:id]
 
-  igdb_claims = WikidataHelper.get_claims(entity: "Q#{wikidata_item[:wikidata_id]}", property: IGDB_GAME_PID).dig(IGDB_GAME_PID)
-  # Simplify the claims just to the parts we care about: the IGDB slug and the claim ID.
-  igdb_claims.map! do |claim|
-    {
-      claim_id: claim.dig('id'),
-      igdb_slug: claim.dig('mainsnak', 'datavalue', 'value')
-    }
-  end
+  igdb_claims = WikidataHelper.get_claims(entity: "Q#{wikidata_item[:wikidata_id]}", property: IGDB_GAME_PID).dig(IGDB_GAME_PID) || []
 
   # Filter to the claim specifically about the given IGDB slug, in case
   # there are multiple on the same game item.
-  igdb_claim_id = igdb_claims.find { |claim| claim[:igdb_slug] == igdb_game[:slug] }&.dig(:claim_id)
+  igdb_claim = igdb_claims.find { |claim| claim.dig('mainsnak', 'datavalue', 'value') == igdb_game[:slug] }
 
-  if igdb_claim_id.nil?
+  if igdb_claim.nil?
     progress_bar.log 'No relevant claim ID could be found.'
     progress_bar.increment
     next
   end
+
+  # The query service can lag behind, so check the live claim before adding
+  # the qualifier again.
+  if igdb_claim.dig('qualifiers', IGDB_NUMERIC_GAME_PID)
+    progress_bar.log "Q#{wikidata_item[:wikidata_id]} already has a numeric IGDB ID qualifier."
+    progress_bar.increment
+    next
+  end
+
+  igdb_claim_id = igdb_claim['id']
 
   sleep 1
   progress_bar.log "--------------------------"
