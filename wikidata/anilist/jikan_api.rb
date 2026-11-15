@@ -20,6 +20,14 @@ module JikanAPI
   # How long to back off after a 429 if Jikan doesn't say.
   RATE_LIMIT_TIMEOUT = 60
   MAX_ATTEMPTS = 6
+  # Stop the run after this many IDs in a row fail, since Jikan is probably
+  # down, rather than spending a minute of retries on each remaining ID.
+  MAX_CONSECUTIVE_FAILURES = 3
+  CONNECTION_ERRORS = [
+    Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNRESET, Errno::ECONNREFUSED,
+    Errno::EHOSTUNREACH, Errno::ENETUNREACH, Errno::ETIMEDOUT, SocketError,
+    EOFError, IOError, OpenSSL::SSL::SSLError
+  ].freeze
   TYPES = %w[anime manga].freeze
 
   # @return [String] path of the cache for a type ('anime' or 'manga').
@@ -61,21 +69,32 @@ module JikanAPI
     AniListAPI.log "Fetching them from Jikan, about #{minutes} minute(s) at one request every #{REQUEST_INTERVAL}s."
 
     failed = 0
+    consecutive_failures = 0
+    # Connected lazily, and reconnected after a network error, by fetch_entry.
+    http = Net::HTTP.new(HOST, 443)
+    http.use_ssl = true
     File.open(cache_path(type), 'a') do |file|
-      Net::HTTP.start(HOST, 443, use_ssl: true) do |http|
-        todo.each_with_index do |id, index|
-          entry = fetch_entry(http, type, id)
-          if entry.nil?
-            failed += 1
-          else
-            file.write("#{JSON.generate(entry)}\n")
-            file.flush
+      todo.each_with_index do |id, index|
+        entry = fetch_entry(http, type, id)
+        if entry.nil?
+          failed += 1
+          consecutive_failures += 1
+          if consecutive_failures >= MAX_CONSECUTIVE_FAILURES
+            AniListAPI.log "#{consecutive_failures} IDs in a row failed, so Jikan is probably down. Stopping; " \
+                           "what was fetched is saved. Run this again later to continue."
+            return todo.count - index - 1 + failed
           end
-          AniListAPI.log "#{index + 1}/#{todo.count} fetched." if ((index + 1) % 50).zero? || index + 1 == todo.count
+        else
+          consecutive_failures = 0
+          file.write("#{JSON.generate(entry)}\n")
+          file.flush
         end
+        AniListAPI.log "#{index + 1}/#{todo.count} fetched." if ((index + 1) % 50).zero? || index + 1 == todo.count
       end
     end
     failed
+  ensure
+    http.finish if http&.started?
   end
 
   # @return [Hash, nil] the cache entry, or nil if it couldn't be fetched.
@@ -89,8 +108,11 @@ module JikanAPI
 
       throttle
       response = begin
+        http.start unless http.started?
         http.request(request)
-      rescue Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNRESET, EOFError, OpenSSL::SSL::SSLError => e
+      rescue *CONNECTION_ERRORS => e
+        # Start over with a fresh connection on the next attempt.
+        http.finish if http.started? rescue nil
         e
       end
       status = response.is_a?(Exception) ? 0 : response.code.to_i

@@ -22,7 +22,7 @@ Run these from this folder. Replace `manga` with `anime` for anime.
 
    ```sh
    for q in ids names; do
-     curl -s https://qlever.dev/api/wikidata -H 'Accept: text/tab-separated-values' \
+     curl -sS --compressed https://qlever.dev/api/wikidata -H 'Accept: text/tab-separated-values' \
        --data-urlencode "query@wd-anilist-mal-manga-$q.rq" -o data/wd-anilist-mal-manga-$q.tsv
    done
    ```
