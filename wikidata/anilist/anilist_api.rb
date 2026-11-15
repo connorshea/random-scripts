@@ -10,7 +10,7 @@ require 'net/http'
 #
 # Dumps are JSON Lines files in data/ (one raw AniList media object per line),
 # shared by every script that needs that media type. Downloads are written
-# page by page and resume where they left off if interrupted.
+# batch by batch and resume where they left off if interrupted.
 #
 # Uses plain Net::HTTP over a single keep-alive connection instead of
 # graphql-client, which downloaded AniList's whole schema on every run.
@@ -18,6 +18,9 @@ module AniListAPI
   URI_ENDPOINT = URI('https://graphql.anilist.co')
   USER_AGENT = "AniList Wikidata Importer (https://github.com/connorshea/random-scripts) Ruby/#{RUBY_VERSION}"
   PER_PAGE = 50 # AniList's maximum.
+  # IDs per `id_in` block, see each_batch. Must stay under AniList's
+  # 5000-entry page depth limit.
+  ID_BLOCK_SIZE = 2500
   DATA_DIR = File.join(__dir__, 'data')
 
   # Every field any script in this directory needs, so one dump serves them all.
@@ -84,7 +87,7 @@ module AniListAPI
 
   #
   # Download every media entry of a type into its dump. Progress is saved
-  # after each page, so an interrupted download resumes on the next call. The
+  # after each batch, so an interrupted download resumes on the next call. The
   # previous dump, if any, is only replaced once the new one is complete.
   #
   # @param type [String] 'ANIME' or 'MANGA'
@@ -92,33 +95,33 @@ module AniListAPI
   def self.download(type)
     path = dump_path(type)
     partial_path = "#{path}.partial"
-    progress_path = "#{partial_path}.page"
     FileUtils.mkdir_p(DATA_DIR)
+    # Progress file from older versions of this script, which paged by number.
+    File.delete("#{partial_path}.page") if File.exist?("#{partial_path}.page")
 
-    last_page = File.exist?(partial_path) && File.exist?(progress_path) ? File.read(progress_path).to_i : 0
-    if last_page.positive?
+    if File.exist?(partial_path) && !File.zero?(partial_path)
       truncate_incomplete_line(partial_path)
-      puts "Resuming the AniList #{type.downcase} download after page #{last_page}."
+      count, last_id = partial_stats(partial_path)
+      puts "Resuming the AniList #{type.downcase} download after ID #{last_id} (#{count} already downloaded)."
     else
       File.write(partial_path, '')
+      count = 0
+      last_id = 0
       puts "Downloading every #{type.downcase} from AniList into #{path}."
     end
 
-    count = File.foreach(partial_path).count
     complete = File.open(partial_path, 'a') do |file|
-      each_page(type, start_page: last_page + 1) do |page, media|
+      each_batch(type, after_id: last_id) do |media|
         file.write(media.map { |m| "#{JSON.generate(m)}\n" }.join)
         file.flush
-        File.write(progress_path, page.to_s)
         count += media.length
-        puts "Page #{page}: #{count} #{type.downcase} downloaded so far."
+        puts "#{count} #{type.downcase} downloaded so far (up to ID #{media.last['id']})."
       end
     end
 
     abort "The AniList #{type.downcase} download stopped early. Run it again to resume." unless complete
 
-    # Sorting by ID keeps pages stable across a resume, but a re-fetched page
-    # can still repeat entries, so drop duplicates while finalizing.
+    # Drop any duplicates while finalizing, just in case.
     seen = {}
     File.open("#{path}.tmp", 'w') do |out|
       File.foreach(partial_path) do |line|
@@ -130,39 +133,73 @@ module AniListAPI
       end
     end
     File.rename("#{path}.tmp", path)
-    File.delete(partial_path, progress_path)
+    File.delete(partial_path)
     puts "Saved #{seen.size} #{type.downcase} to #{path}."
   end
 
   #
-  # Yield each page of media of the given type, sorted by ID.
+  # Yield every media entry of the given type in ascending ID order, in batches
+  # of up to PER_PAGE.
   #
-  # @return [Boolean] true if every page was fetched, false if it stopped early.
-  # @yieldparam page [Integer]
+  # AniList refuses to page beyond the first 5000 entries of a query ("Page
+  # depth exceeds maximum allowed") and has no `id_greater` filter, so this
+  # walks the ID space in blocks of ID_BLOCK_SIZE consecutive IDs using
+  # `id_in`, paging within each block. A block can never hold more than
+  # ID_BLOCK_SIZE entries, so it stays under the depth limit.
+  #
+  # @param after_id [Integer] only fetch entries with IDs above this.
+  # @return [Boolean] true if everything was fetched, false if it stopped early.
   # @yieldparam media [Array<Hash>]
   #
-  def self.each_page(type, start_page: 1)
+  def self.each_batch(type, after_id: 0)
+    validate_type(type)
     query = <<~GRAPHQL
-      query ($page: Int, $perPage: Int) {
+      query ($page: Int, $perPage: Int, $ids: [Int]) {
         Page(page: $page, perPage: $perPage) {
           pageInfo { hasNextPage }
-          media(type: #{validate_type(type)}, sort: ID) { #{FIELDS.fetch(type)} }
+          media(type: #{type}, sort: ID, id_in: $ids) { #{FIELDS.fetch(type)} }
         }
       }
     GRAPHQL
 
-    page = start_page
     Net::HTTP.start(URI_ENDPOINT.host, URI_ENDPOINT.port, use_ssl: true) do |http|
-      loop do
-        data = fetch_page(http, query, page)
-        return false if data.nil?
+      max_id = fetch_max_id(http, type)
+      return false if max_id.nil?
 
-        yield page, data['media']
-        return true unless data.dig('pageInfo', 'hasNextPage')
+      while after_id < max_id
+        ids = ((after_id + 1)..[after_id + ID_BLOCK_SIZE, max_id].min).to_a
+        page = 1
+        loop do
+          data = fetch_page(http, query, { page: page, perPage: PER_PAGE, ids: ids })
+          return false if data.nil?
 
-        page += 1
+          yield data['media'] unless data['media'].empty?
+          break unless data.dig('pageInfo', 'hasNextPage')
+
+          page += 1
+        end
+        after_id = ids.last
       end
     end
+
+    true
+  end
+
+  # @return [Integer, nil] the highest ID of any media of the given type.
+  def self.fetch_max_id(http, type)
+    query = <<~GRAPHQL
+      query {
+        Page(page: 1, perPage: 1) {
+          media(type: #{type}, sort: ID_DESC) { id }
+        }
+      }
+    GRAPHQL
+    data = fetch_page(http, query, {})
+    return nil if data.nil?
+
+    max_id = data.dig('media', 0, 'id')
+    puts "Highest AniList #{type.downcase} ID is #{max_id}."
+    max_id
   end
 
   def self.validate_type(type)
@@ -171,9 +208,22 @@ module AniListAPI
     type
   end
 
+  # @return [Array(Integer, Integer)] number of entries and the highest ID in a
+  #   partial dump.
+  def self.partial_stats(path)
+    count = 0
+    max_id = 0
+    File.foreach(path) do |line|
+      count += 1
+      id = JSON.parse(line)['id']
+      max_id = id if id > max_id
+    end
+    [count, max_id]
+  end
+
   # If the process was killed mid-write, drop the partial last line so the
-  # resumed download starts on a fresh line. That page is re-fetched anyway,
-  # since its progress was never recorded.
+  # resumed download starts on a fresh line. Those entries are re-fetched,
+  # since the resume starts after the last complete line's ID.
   def self.truncate_incomplete_line(path)
     contents = File.binread(path)
     return if contents.empty? || contents.end_with?("\n")
@@ -182,7 +232,7 @@ module AniListAPI
   end
 
   # @return [Hash, nil] the `Page` object, or nil on an unrecoverable error.
-  def self.fetch_page(http, query, page)
+  def self.fetch_page(http, query, variables)
     attempts = 0
     loop do
       attempts += 1
@@ -191,7 +241,7 @@ module AniListAPI
       request['User-Agent'] = USER_AGENT
       request['Content-Type'] = 'application/json'
       request['Accept'] = 'application/json'
-      request.body = JSON.generate(query: query, variables: { page: page, perPage: PER_PAGE })
+      request.body = JSON.generate(query: query, variables: variables)
 
       throttle
       response = http.request(request)
@@ -211,7 +261,7 @@ module AniListAPI
       wait_for_rate_limit_window(response)
 
       data = (JSON.parse(response.body) rescue nil)&.dig('data', 'Page')
-      puts "Unexpected response on page #{page} (HTTP #{status}): #{response.body}" if data.nil?
+      puts "Unexpected response for #{variables.inspect} (HTTP #{status}): #{response.body}" if data.nil?
       return data
     end
   end
