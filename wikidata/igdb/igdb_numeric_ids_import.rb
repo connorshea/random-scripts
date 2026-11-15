@@ -90,6 +90,14 @@ wikidata_rows.each do |row|
   wikidata_items << wikidata_item
 end
 
+# Drop items whose IGDB slug isn't in the dump (usually IDs that were
+# deleted or renamed on IGDB), so the progress bar only counts real work.
+unmatched_items, wikidata_items = wikidata_items.partition { |item| igdb_games_by_slug[item[:igdb_id]].nil? }
+puts "#{wikidata_items.count + unmatched_items.count} IGDB IDs on Wikidata without a numeric ID qualifier."
+puts "Skipping #{unmatched_items.count} whose slug isn't in igdb_games.json:"
+unmatched_items.each { |item| puts "  Q#{item[:wikidata_id]}\t#{item[:igdb_id]}" }
+puts "#{wikidata_items.count} left to process."
+
 progress_bar = ProgressBar.create(
   total: wikidata_items.count,
   format: "\e[0;32m%c/%C |%b>%i| %e\e[0m"
@@ -99,13 +107,7 @@ wikidata_items.each do |wikidata_item|
   igdb_id = wikidata_item[:igdb_id]
 
   # Find the numeric IGDB ID associated with the Wikidata item's IGDB ID.
-  igdb_game = igdb_games_by_slug[igdb_id]
-
-  if igdb_game.nil?
-    progress_bar.log 'No IGDB numeric ID could be derived from the IGDB ID.'
-    progress_bar.increment
-    next
-  end
+  igdb_game = igdb_games_by_slug.fetch(igdb_id)
 
   igdb_numeric_id = igdb_game[:id]
 
