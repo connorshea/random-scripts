@@ -45,6 +45,9 @@
 
 # Don't commit data files!
 *.json
+*.jsonl
+# In-progress downloads, e.g. foo.jsonl.partial
+*.jsonl.*
 *.txt
 *.html
 *.xml
@@ -52,5 +55,3 @@
 *.tsv
 rc/
 
-# AniList API dumps, see wikidata/anilist/anilist_dump.rb
-wikidata/anilist/data/
