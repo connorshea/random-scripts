@@ -51,3 +51,6 @@
 *.csv
 *.tsv
 rc/
+
+# AniList API dumps, see wikidata/anilist/anilist_dump.rb
+wikidata/anilist/data/
