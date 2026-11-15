@@ -1,0 +1,15 @@
+# Every label and alias, in any language, of items that have an AniList manga
+# ID (P8731) or a MyAnimeList manga ID (P4087), but not both (any rank).
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?item ?name WHERE {
+  {
+    SELECT DISTINCT ?item WHERE {
+      { ?item p:P8731 [] . MINUS { ?item p:P4087 [] } }
+      UNION
+      { ?item p:P4087 [] . MINUS { ?item p:P8731 [] } }
+    }
+  }
+  { ?item rdfs:label ?name } UNION { ?item skos:altLabel ?name }
+}

@@ -1,22 +1,24 @@
 # frozen_string_literal: true
 
 ##
-# Writes a QuickStatements batch that fills in missing AniList anime IDs
-# (P8729) and MyAnimeList anime IDs (P4086) on Wikidata items that have one
-# but not the other, using the MAL IDs in the AniList dump.
+# Writes a QuickStatements batch that fills in missing AniList IDs and
+# MyAnimeList IDs on Wikidata items that have one but not the other, using the
+# MAL IDs in the AniList dump. Works for anime (P8729 / P4086) and manga
+# (P8731 / P4087).
 #
 # Nothing is edited and no web service is called. The inputs are files:
 #
-# 1. The AniList anime dump, data/anilist_anime.jsonl (see anilist_dump.rb).
-# 2. wd-anilist-mal-ids.tsv: the result of wd-anilist-mal-ids.rq (every P8729
-#    and P4086 value on Wikidata and the item it's on), saved as TSV from
-#    QLever or the Wikidata Query Service.
-# 3. wd-anilist-mal-names.tsv: the result of wd-anilist-mal-names.rq (labels
-#    and aliases of the items that have only one of the two IDs).
+# 1. The AniList dump, data/anilist_<type>.jsonl (see anilist_dump.rb).
+# 2. wd-anilist-mal-<type>-ids.tsv: the result of wd-anilist-mal-<type>-ids.rq
+#    (every AniList and MAL ID of that type on Wikidata and the item it's on),
+#    saved as TSV from QLever or the Wikidata Query Service.
+# 3. wd-anilist-mal-<type>-names.tsv: the result of
+#    wd-anilist-mal-<type>-names.rq (labels and aliases of the items that have
+#    only one of the two IDs).
 #
 # USAGE:
 #
-#   ruby anilist_mal_quickstatements.rb wd-anilist-mal-ids.tsv wd-anilist-mal-names.tsv [out-dir]
+#   ruby anilist_mal_quickstatements.rb anime|manga wd-anilist-mal-<type>-ids.tsv wd-anilist-mal-<type>-names.tsv [out-dir]
 #
 # For an item with AniList ID(s) but no MAL ID, the MAL ID of its AniList
 # entry is added. For an item with MAL ID(s) but no AniList ID, the AniList
@@ -27,31 +29,44 @@
 #   item in this batch would get it too,
 # - one of the item's labels or aliases matches one of the AniList entry's
 #   English, romaji or native titles (see names_match?),
+# - one of MyAnimeList's titles for the MAL ID matches one of the AniList
+#   titles or Wikidata names, so AniList's link to MAL is checked too,
 # - both IDs match the properties' format constraint, [1-9]\d*.
 #
+# MAL titles come from data/mal_<type>.jsonl, a cache of Jikan responses. The
+# generator writes the MAL IDs it needs to data/anilist-mal-<type>-mal-ids-to-check.txt;
+# candidates whose MAL titles aren't cached yet are skipped. So the workflow
+# is: run this, run `ruby jikan_fetch.rb <type>`, then run this again.
+#
 # Each statement gets a reference with the other ID it was derived from (the
-# item's AniList anime ID for a new MAL ID, the item's MAL anime ID for a new
-# AniList ID) and retrieved (P813) set to the date the AniList dump was
-# downloaded.
+# item's AniList ID for a new MAL ID, the item's MAL ID for a new AniList ID)
+# and retrieved (P813) set to the date the AniList dump was downloaded.
 #
 # Writes to out-dir (default: data/):
-# - anilist-mal-ids.qs.tsv: the QuickStatements batch, in the tab-separated
-#   (v1) command syntax.
-# - anilist-mal-name-mismatches.tsv: items that could be matched by ID but
-#   whose names differ from the AniList titles, for manual review. Each row
-#   includes the QuickStatements command, so approved rows can be copied over.
-# - anilist-mal-skipped.tsv: every other candidate that wasn't added, and why.
+# - anilist-mal-<type>-ids.qs.tsv: the QuickStatements batch, in the
+#   tab-separated (v1) command syntax.
+# - anilist-mal-<type>-name-mismatches.tsv: items that could be matched by ID
+#   but whose Wikidata names or MAL titles differ from the AniList titles, for
+#   manual review. Each row includes the QuickStatements command, so approved
+#   rows can be copied over.
+# - anilist-mal-<type>-mal-ids-to-check.txt: the MAL IDs to fetch titles for,
+#   see above.
+# - anilist-mal-<type>-skipped.tsv: every other candidate that wasn't added,
+#   and why.
 
 require 'json'
 require 'rubygems/text'
 require_relative './anilist_api.rb'
+require_relative './jikan_api.rb'
 
-ANILIST_ANIME_PID = 'P8729'
-MAL_ANIME_PID = 'P4086'
+PROPERTIES = {
+  'ANIME' => { anilist: 'P8729', mal: 'P4086' },
+  'MANGA' => { anilist: 'P8731', mal: 'P4087' }
+}.freeze
 RETRIEVED_PID = 'P813'
 
-# Format constraint (P1793) of both P8729 and P4086: a positive integer with
-# no leading zeros.
+# Format constraint (P1793) of all four ID properties: a positive integer
+# with no leading zeros.
 ID_FORMAT = /\A[1-9]\d*\z/
 
 LEVENSHTEIN = Class.new.extend(Gem::Text).method(:levenshtein_distance)
@@ -124,17 +139,25 @@ def tsv_row(values)
   values.map { |v| v.to_s.gsub(/\s/, ' ') }.join("\t")
 end
 
-ids_path, names_path, out_dir = ARGV
-abort 'Usage: ruby anilist_mal_quickstatements.rb wd-anilist-mal-ids.tsv wd-anilist-mal-names.tsv [out-dir]' if ids_path.nil? || names_path.nil?
+type_arg, ids_path, names_path, out_dir = ARGV
+type = type_arg.to_s.upcase
+if !PROPERTIES.key?(type) || ids_path.nil? || names_path.nil?
+  abort "Usage: ruby #{File.basename(__FILE__)} anime|manga wd-anilist-mal-<type>-ids.tsv wd-anilist-mal-<type>-names.tsv [out-dir]"
+end
 out_dir ||= AniListAPI::DATA_DIR
+kind = type.downcase
+ANILIST_PID = PROPERTIES[type][:anilist]
+MAL_PID = PROPERTIES[type][:mal]
 
 # --- AniList dump ---
-anilist = AniListAPI.load('ANIME', download: false)
+anilist = AniListAPI.load(type, download: false)
 anilist_by_id = anilist.to_h { |media| [media['id'].to_s, media] }
 anilist_by_mal_id = anilist.reject { |media| media['idMal'].nil? }.group_by { |media| media['idMal'].to_s }
 # QuickStatements time value, day precision.
-retrieved = File.mtime(AniListAPI.dump_path('ANIME')).utc.strftime('+%Y-%m-%dT00:00:00Z/11')
-puts "#{anilist.count} anime in the AniList dump, #{anilist_by_mal_id.count} distinct MAL IDs."
+retrieved = File.mtime(AniListAPI.dump_path(type)).utc.strftime('+%Y-%m-%dT00:00:00Z/11')
+puts "#{anilist.count} #{kind} in the AniList dump, #{anilist_by_mal_id.count} distinct MAL IDs."
+mal = JikanAPI.load(kind)
+puts "#{mal.count} MAL #{kind} entries cached from Jikan."
 
 # --- Wikidata IDs ---
 anilist_ids_by_item = Hash.new { |h, k| h[k] = [] }
@@ -156,7 +179,7 @@ read_sparql_tsv(ids_path).each do |row|
     items_by_mal_id[mal_id] |= [qid]
   end
 end
-puts "Wikidata: #{anilist_ids_by_item.count} items with an AniList anime ID, #{mal_ids_by_item.count} with a MAL anime ID."
+puts "Wikidata: #{anilist_ids_by_item.count} items with an AniList #{kind} ID, #{mal_ids_by_item.count} with a MAL #{kind} ID."
 
 names_by_item = Hash.new { |h, k| h[k] = [] }
 read_sparql_tsv(names_path).each do |row|
@@ -168,54 +191,57 @@ end
 # Each candidate: [qid, property to add, value, AniList entry]
 candidates = []
 skipped = []
+other_kind = kind == 'anime' ? 'manga' : 'anime'
 
 (anilist_ids_by_item.keys - mal_ids_by_item.keys).sort_by { |q| q[1..].to_i }.each do |qid|
   anilist_ids = anilist_ids_by_item[qid]
   entries = anilist_ids.map { |id| anilist_by_id[id] }
   if entries.any?(&:nil?)
     missing = anilist_ids.reject { |id| anilist_by_id.key?(id) }
-    skipped << [qid, MAL_ANIME_PID, '', "AniList ID #{missing.join(',')} not in the anime dump (deleted, merged, or a manga ID?)"]
+    skipped << [qid, MAL_PID, '', "AniList ID #{missing.join(',')} not in the #{kind} dump (deleted, merged, or an #{other_kind} ID?)"]
     next
   end
 
   mal_ids = entries.map { |e| e['idMal'] }.compact.map(&:to_s).uniq
   if mal_ids.empty?
-    skipped << [qid, MAL_ANIME_PID, '', "AniList #{anilist_ids.join(',')} has no MAL ID"]
+    skipped << [qid, MAL_PID, '', "AniList #{anilist_ids.join(',')} has no MAL ID"]
   elsif mal_ids.length > 1
-    skipped << [qid, MAL_ANIME_PID, mal_ids.join(','), "item's AniList IDs point to different MAL IDs"]
+    skipped << [qid, MAL_PID, mal_ids.join(','), "item's AniList IDs point to different MAL IDs"]
   else
     entry = entries.find { |e| e['idMal'].to_s == mal_ids.first }
-    candidates << [qid, MAL_ANIME_PID, mal_ids.first, entry]
+    candidates << [qid, MAL_PID, mal_ids.first, entry]
   end
 end
 
 (mal_ids_by_item.keys - anilist_ids_by_item.keys).sort_by { |q| q[1..].to_i }.each do |qid|
   entries = mal_ids_by_item[qid].flat_map { |mal_id| anilist_by_mal_id.fetch(mal_id, []) }.uniq { |e| e['id'] }
   if entries.empty?
-    skipped << [qid, ANILIST_ANIME_PID, '', "no AniList anime with MAL ID #{mal_ids_by_item[qid].join(',')}"]
+    skipped << [qid, ANILIST_PID, '', "no AniList #{kind} with MAL ID #{mal_ids_by_item[qid].join(',')}"]
   elsif entries.length > 1
-    skipped << [qid, ANILIST_ANIME_PID, entries.map { |e| e['id'] }.join(','), "several AniList anime have MAL ID #{mal_ids_by_item[qid].join(',')}"]
+    skipped << [qid, ANILIST_PID, entries.map { |e| e['id'] }.join(','), "several AniList #{kind} have MAL ID #{mal_ids_by_item[qid].join(',')}"]
   else
-    candidates << [qid, ANILIST_ANIME_PID, entries.first['id'].to_s, entries.first]
+    candidates << [qid, ANILIST_PID, entries.first['id'].to_s, entries.first]
   end
 end
 
 # --- Filter candidates ---
 statements = []
 mismatches = []
+mal_ids_to_check = []
+not_fetched = 0
 value_counts = candidates.map { |_, pid, value, _| [pid, value] }.tally
 
 candidates.each do |qid, pid, value, entry|
-  in_use = (pid == MAL_ANIME_PID ? items_by_mal_id : items_by_anilist_id)[value]
+  in_use = (pid == MAL_PID ? items_by_mal_id : items_by_anilist_id)[value]
   titles = entry['title'].values_at('english', 'romaji', 'native').compact
 
   # Reference the other ID the value was derived from: a MAL ID comes from
   # the item's AniList entry, an AniList ID was found via the item's MAL ID.
   source_pid, source_value =
-    if pid == MAL_ANIME_PID
-      [ANILIST_ANIME_PID, entry['id'].to_s]
+    if pid == MAL_PID
+      [ANILIST_PID, entry['id'].to_s]
     else
-      [MAL_ANIME_PID, entry['idMal'].to_s]
+      [MAL_PID, entry['idMal'].to_s]
     end
   command = tsv_row([
     qid, pid, "\"#{value}\"",
@@ -232,27 +258,57 @@ candidates.each do |qid, pid, value, entry|
   elsif value_counts[[pid, value]] > 1
     others = candidates.select { |_, p, v, _| p == pid && v == value }.map(&:first) - [qid]
     skipped << [qid, pid, value, "would also be added to #{others.join(',')}"]
-  elsif names_match?(names_by_item[qid], titles)
-    statements << command
   else
-    mismatches << [qid, pid, value, entry['id'], titles.join(' / '), names_by_item[qid].first(8).join(' / '), command]
+    mal_id = entry['idMal'].to_s
+    mal_ids_to_check << mal_id
+    mal_entry = mal[mal_id]
+    if mal_entry.nil?
+      not_fetched += 1
+      skipped << [qid, pid, value, "MAL #{kind} #{mal_id} not checked yet, run jikan_fetch.rb #{kind}"]
+      next
+    elsif mal_entry['status'] == 404
+      skipped << [qid, pid, value, "MAL #{kind} #{mal_id} doesn't exist on MyAnimeList (deleted or merged?)"]
+      next
+    end
+
+    mal_titles = mal_entry['titles']
+    wikidata_ok = names_match?(names_by_item[qid], titles)
+    mal_ok = names_match?(mal_titles, titles + names_by_item[qid])
+    if wikidata_ok && mal_ok
+      statements << command
+    else
+      reason = [('Wikidata names' unless wikidata_ok), ('MAL titles' unless mal_ok)].compact.join(' and ')
+      mismatches << [
+        qid, pid, value, entry['id'], mal_id, "#{reason} don't match AniList",
+        titles.join(' / '), names_by_item[qid].first(8).join(' / '), mal_titles.first(8).join(' / '), command
+      ]
+    end
   end
 end
 
 # --- Write ---
-qs_path = File.join(out_dir, 'anilist-mal-ids.qs.tsv')
+qs_path = File.join(out_dir, "anilist-mal-#{kind}-ids.qs.tsv")
+mismatches_path = File.join(out_dir, "anilist-mal-#{kind}-name-mismatches.tsv")
+skipped_path = File.join(out_dir, "anilist-mal-#{kind}-skipped.tsv")
+to_check_path = File.join(out_dir, "anilist-mal-#{kind}-mal-ids-to-check.txt")
 File.write(qs_path, statements.map { |s| "#{s}\n" }.join)
 File.write(
-  File.join(out_dir, 'anilist-mal-name-mismatches.tsv'),
-  ([tsv_row(%w[qid property value anilist_id anilist_titles wikidata_names quickstatements])] + mismatches.map { |m| tsv_row(m) }).join("\n") + "\n"
+  mismatches_path,
+  ([tsv_row(%w[qid property value anilist_id mal_id reason anilist_titles wikidata_names mal_titles quickstatements])] +
+   mismatches.map { |m| tsv_row(m) }).join("\n") + "\n"
 )
+File.write(to_check_path, mal_ids_to_check.uniq.sort_by(&:to_i).map { |id| "#{id}\n" }.join)
 File.write(
-  File.join(out_dir, 'anilist-mal-skipped.tsv'),
+  skipped_path,
   ([tsv_row(%w[qid property value reason])] + skipped.map { |s| tsv_row(s) }).join("\n") + "\n"
 )
 
 adds = statements.map { |s| s.split("\t")[1] }.tally
 puts "#{statements.count} statements written to #{qs_path} " \
-     "(#{adds[MAL_ANIME_PID].to_i} MAL IDs, #{adds[ANILIST_ANIME_PID].to_i} AniList IDs)."
-puts "#{mismatches.count} name mismatches to review in #{File.join(out_dir, 'anilist-mal-name-mismatches.tsv')}."
-puts "#{skipped.count} skipped, see #{File.join(out_dir, 'anilist-mal-skipped.tsv')}."
+     "(#{adds[MAL_PID].to_i} MAL IDs, #{adds[ANILIST_PID].to_i} AniList IDs)."
+puts "#{mismatches.count} name mismatches to review in #{mismatches_path}."
+puts "#{skipped.count} skipped, see #{skipped_path}."
+if not_fetched.positive?
+  puts "#{not_fetched} candidates were skipped because their MAL titles aren't cached yet. Fetch them with " \
+       "`ruby #{File.join(__dir__, 'jikan_fetch.rb')} #{kind}`, then run this again."
+end

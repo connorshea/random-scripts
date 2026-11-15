@@ -1,0 +1,9 @@
+# Every AniList manga ID (P8731) and MyAnimeList manga ID (P4087) on Wikidata,
+# any rank, with the item it's on. Each row has one of ?anilist or ?mal.
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+SELECT ?item ?anilist ?mal WHERE {
+  { ?item p:P8731 ?st . ?st ps:P8731 ?anilist . }
+  UNION
+  { ?item p:P4087 ?st . ?st ps:P4087 ?mal . }
+}
