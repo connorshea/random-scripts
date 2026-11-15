@@ -16,6 +16,7 @@ Nothing here edits Wikidata or calls IGDB. The batches are for you to review and
 
 - The IGDB dump, `igdb_games.json`, downloaded with `igdb_dumper.rb` (see step 1).
 - Every IGDB, Steam, Epic and GOG ID on Wikidata, plus the names of items with an IGDB ID, from QLever (see step 2).
+- Steam's full app list (every app ID and name), to check Steam IDs against Steam's own names (see step 3).
 
 Output goes to `data/`. `.json` and `.tsv` files are gitignored.
 
@@ -38,7 +39,9 @@ Run these from this folder.
 
    If QLever fails while sending a result, it appends an error message to the incomplete file, and curl still exits successfully. The generator checks for that message and stops if it finds it. If it does, run the query again.
 
-3. `ruby igdb_store_ids_quickstatements.rb data/wd-igdb-store-ids.tsv data/wd-igdb-names.tsv` writes:
+3. `STEAM_API_KEY=... ruby steam_app_list_dump.rb` downloads Steam's app list into `data/steam_app_list.jsonl`, using `IStoreService/GetAppList`. It pages through games, DLC and software at 50,000 apps per request, so it takes a few requests. It needs a Steam Web API key (free, from https://steamcommunity.com/dev/apikey), which is only sent to `api.steampowered.com` and isn't logged. Without the app list, the generator writes no Steam statements.
+
+4. `ruby igdb_store_ids_quickstatements.rb data/wd-igdb-store-ids.tsv data/wd-igdb-names.tsv` writes:
 
    - `data/igdb-steam-ids.qs.tsv`, `data/igdb-epic-ids.qs.tsv`, `data/igdb-gog-ids.qs.tsv`: the batches, in the tab-separated (v1) QuickStatements syntax.
    - `data/igdb-store-ids-name-mismatches.tsv`: candidates to review, with the reason. Each row has its QuickStatements command, so approved rows can be copied into a batch.
@@ -71,8 +74,9 @@ An item gets a store's ID only when:
 - the ID matches the property's format constraint
 - one of the item's English or `mul` labels or aliases matches the IGDB game's name
 - for Epic and GOG, the store slug resembles the IGDB game's slug or name
+- for Steam, the app ID is in Steam's app list, and Steam's name for it matches the IGDB name or one of the item's names. This catches IGDB linking a game to the wrong app, including its soundtrack, demo or a DLC, whose names differ.
 
-The last two rules send candidates to the review file rather than skipping them.
+The last three rules send candidates to the review file rather than skipping them.
 
 Names are compared after removing ™, ® and ©, NFKC normalization, lowercasing, removing a trailing "(video game)", treating "&" as "and", and removing everything that isn't a letter or digit. Names of 8 or more characters also match within a Levenshtein distance of 2, if their lengths differ by no more than 2.
 

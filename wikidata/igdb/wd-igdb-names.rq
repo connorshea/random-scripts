@@ -1,0 +1,15 @@
+# English and multilingual labels and aliases of every item with an IGDB game
+# ID (P5794). Items with several IGDB IDs repeat their names.
+#
+# Uses QLever's @lang@predicate syntax, which reads the per-language
+# triples directly instead of filtering every label by LANG().
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?item ?name WHERE {
+  ?item wdt:P5794 [] .
+  { ?item @en@rdfs:label ?name }
+  UNION { ?item @mul@rdfs:label ?name }
+  UNION { ?item @en@skos:altLabel ?name }
+  UNION { ?item @mul@skos:altLabel ?name }
+}

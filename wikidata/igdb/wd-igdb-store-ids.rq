@@ -1,0 +1,15 @@
+# Every IGDB game ID (P5794, not deprecated), and every Steam application ID
+# (P1733), Epic Games Store ID (P6278) and GOG application ID (P2725) of any
+# rank, with the item it's on. Each row has one of the four.
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+PREFIX wikibase: <http://wikiba.se/ontology#>
+SELECT ?item ?igdb ?steam ?epic ?gog WHERE {
+  { ?item p:P5794 ?st . ?st ps:P5794 ?igdb ; wikibase:rank ?rank . FILTER(?rank != wikibase:DeprecatedRank) }
+  UNION
+  { ?item p:P1733 ?st . ?st ps:P1733 ?steam . }
+  UNION
+  { ?item p:P6278 ?st . ?st ps:P6278 ?epic . }
+  UNION
+  { ?item p:P2725 ?st . ?st ps:P2725 ?gog . }
+}
