@@ -65,7 +65,7 @@ def steam_rows
   sparql_client = SPARQL::Client.new(
     "https://query.wikidata.org/sparql",
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (https://github.com/connorshea/random-scripts) Ruby 3.1" }
   )
 
   # Get the response from the Wikidata query.
@@ -87,7 +87,7 @@ def igdb_rows
   sparql_client = SPARQL::Client.new(
     "https://query.wikidata.org/sparql",
     method: :get,
-    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby 3.1" }
+    headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (https://github.com/connorshea/random-scripts) Ruby 3.1" }
   )
 
   # Get the response from the Wikidata query.

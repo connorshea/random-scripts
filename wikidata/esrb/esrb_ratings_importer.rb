@@ -222,7 +222,7 @@ end
 client = SPARQL::Client.new(
   ENDPOINT,
   method: :get,
-  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+rubyscripts@gmail.com) Ruby 3.1" }
+  headers: { 'User-Agent': "Connor's Random Ruby Scripts Data Fetcher/1.0 (https://github.com/connorshea/random-scripts) Ruby 3.1" }
 )
 
 items_with_esrb_id_and_no_rating = client.query(items_with_esrb_id_and_no_rating_query)

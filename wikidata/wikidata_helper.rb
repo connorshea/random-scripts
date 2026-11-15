@@ -5,7 +5,7 @@ module WikidataHelper
 
   # Wikimedia rate-limits requests that don't send a descriptive User-Agent.
   # https://meta.wikimedia.org/wiki/User-Agent_policy
-  USER_AGENT = "Connor's Random Ruby Scripts Data Fetcher/1.0 (connor.james.shea+wdscripts@gmail.com) Ruby #{RUBY_VERSION}".freeze
+  USER_AGENT = "Connor's Random Ruby Scripts Data Fetcher/1.0 (https://github.com/connorshea/random-scripts) Ruby #{RUBY_VERSION}".freeze
   MAX_RETRIES = 5
 
   #
