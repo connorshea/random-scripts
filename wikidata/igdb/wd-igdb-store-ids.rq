@@ -1,10 +1,17 @@
 # Every IGDB game ID (P5794, not deprecated), and every Steam application ID
 # (P1733), Epic Games Store ID (P6278) and GOG application ID (P2725) of any
-# rank, with the item it's on. Each row has one of the four.
+# rank, with the item it's on. Each row has one of these columns:
+#
+# - ?steam_with_platform: a Steam ID whose statement has a platform (P400)
+#   qualifier.
+# - ?distributor: distributed by (P750) Steam (Q337535), Epic Games Store
+#   (Q59510068) or GOG.com (Q1486288), of any rank.
 PREFIX p: <http://www.wikidata.org/prop/>
 PREFIX ps: <http://www.wikidata.org/prop/statement/>
+PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
+PREFIX wd: <http://www.wikidata.org/entity/>
 PREFIX wikibase: <http://wikiba.se/ontology#>
-SELECT ?item ?igdb ?steam ?epic ?gog WHERE {
+SELECT ?item ?igdb ?steam ?epic ?gog ?steam_with_platform ?distributor WHERE {
   { ?item p:P5794 ?st . ?st ps:P5794 ?igdb ; wikibase:rank ?rank . FILTER(?rank != wikibase:DeprecatedRank) }
   UNION
   { ?item p:P1733 ?st . ?st ps:P1733 ?steam . }
@@ -12,4 +19,12 @@ SELECT ?item ?igdb ?steam ?epic ?gog WHERE {
   { ?item p:P6278 ?st . ?st ps:P6278 ?epic . }
   UNION
   { ?item p:P2725 ?st . ?st ps:P2725 ?gog . }
+  UNION
+  { ?item p:P1733 ?st . ?st ps:P1733 ?steam_with_platform ; pq:P400 [] . }
+  UNION
+  { ?item p:P750 ?st . ?st ps:P750 wd:Q337535 . BIND("Q337535" AS ?distributor) }
+  UNION
+  { ?item p:P750 ?st . ?st ps:P750 wd:Q59510068 . BIND("Q59510068" AS ?distributor) }
+  UNION
+  { ?item p:P750 ?st . ?st ps:P750 wd:Q1486288 . BIND("Q1486288" AS ?distributor) }
 }

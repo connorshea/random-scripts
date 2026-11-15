@@ -39,16 +39,36 @@
 # downloaded with steam_app_list_dump.rb. Without it, no Steam statements are
 # written.
 #
-# Each statement gets a reference: stated in (P248) IGDB (Q20056333), the
+# Steam IDs get a platform (P400) qualifier for each platform Steam lists
+# (Windows, macOS, Linux), from data/steam_platforms.jsonl, fetched with
+# steam_platforms_fetch.rb for the app IDs this script writes to
+# igdb-steam-ids-to-check.txt. Items also get distributed by (P750) Steam
+# (Q337535), unless they already have it. Likewise, items getting an Epic or
+# GOG ID get P750 Epic Games Store (Q59510068) or GOG.com (Q1486288). P750
+# never gets platform qualifiers, and its reference is just inferred from
+# (P3452) the store. Each ID property's constraints
+# require that P750 statement. Steam
+# candidates whose platforms haven't been fetched are skipped.
+#
+# Items that already have the Steam ID IGDB links to, but no platform
+# qualifier on it or no P750 Steam (for example from an earlier, partly run
+# batch), get those added by igdb-steam-qualifiers.qs.tsv.
+#
+# Each new ID statement gets a reference: stated in (P248) IGDB (Q20056333), the
 # IGDB game ID it came from, and retrieved (P813) set to the date the IGDB
 # dump was downloaded.
 #
 # Writes to out-dir (default: data/):
 # - igdb-steam-ids.qs.tsv, igdb-epic-ids.qs.tsv, igdb-gog-ids.qs.tsv: the
 #   QuickStatements batches, in the tab-separated (v1) command syntax.
+# - igdb-steam-qualifiers.qs.tsv: platform qualifiers and P750 Steam for
+#   items that already have the Steam ID.
+# - igdb-steam-ids-to-check.txt: Steam app IDs whose platforms haven't been
+#   fetched, for steam_platforms_fetch.rb.
 # - igdb-store-ids-name-mismatches.tsv: candidates whose names or store
 #   slugs don't match, or that Steam's app list disagrees with, for manual
-#   review. Each row includes the QuickStatements command, so
+#   review. Each row includes the QuickStatements commands (several are
+#   joined with "||", which QuickStatements reads as a line break), so
 #   approved rows can be copied over.
 # - igdb-store-ids-skipped.tsv: every other candidate that wasn't added, and
 #   why.
@@ -56,11 +76,15 @@
 require 'json'
 require 'rubygems/text'
 require_relative './steam_app_list.rb'
+require_relative './steam_platforms.rb'
 
 IGDB_PID = 'P5794'
 STATED_IN_PID = 'P248'
 RETRIEVED_PID = 'P813'
 IGDB_QID = 'Q20056333'
+PLATFORM_PID = 'P400'
+DISTRIBUTED_BY_PID = 'P750'
+INFERRED_FROM_PID = 'P3452'
 
 # IGDB external_games.external_game_source and websites.type values (both
 # copied into `category` by igdb_dumper.rb).
@@ -77,6 +101,8 @@ STORES = {
     column: 'steam',
     external: EXTERNAL_STEAM,
     website: WEBSITE_STEAM,
+    # distributed by (P750), which the property's constraints require.
+    distributor: 'Q337535', # Steam
     # https://store.steampowered.com/app/211740/Thief/
     from_url: ->(url) { url[%r{\Ahttps?://store\.steampowered\.com/app/(\d+)}i, 1] },
     # Format constraint: [1-9]\d{0,6}
@@ -87,6 +113,7 @@ STORES = {
     column: 'epic',
     external: EXTERNAL_EPIC,
     website: WEBSITE_EPIC,
+    distributor: 'Q59510068', # Epic Games Store
     # https://store.epicgames.com/en-US/p/thief-5bb95f,
     # https://www.epicgames.com/store/p/fallout-2
     from_url: ->(url) { url[%r{\Ahttps?://(?:store|www)\.epicgames\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:store/)?(?:[a-z]{2}(?:-[a-z]{2})?/)?p/([^/?#]+)}i, 1] },
@@ -99,6 +126,7 @@ STORES = {
     column: 'gog',
     external: EXTERNAL_GOG,
     website: WEBSITE_GOG,
+    distributor: 'Q1486288', # GOG.com
     # https://www.gog.com/en/game/thief_3 -> "game/thief_3"
     from_url: lambda { |url|
       slug = url[%r{\Ahttps?://(?:www\.)?gog\.com/(?:[a-z]{2}/)?game/([^/?#]+)}i, 1]
@@ -190,6 +218,30 @@ def tsv_row(values)
   values.map { |v| v.to_s.gsub(/\s/, ' ') }.join("\t")
 end
 
+# The QuickStatements reference for a statement from an IGDB game.
+def igdb_reference(slug, retrieved)
+  [STATED_IN_PID.sub('P', 'S'), IGDB_QID, IGDB_PID.sub('P', 'S'), "\"#{slug}\"", RETRIEVED_PID.sub('P', 'S'), retrieved]
+end
+
+# distributed by (P750) the store, referenced with inferred from (P3452) the
+# store rather than IGDB.
+def distributor_command(qid, distributor_qid)
+  [qid, DISTRIBUTED_BY_PID, distributor_qid, INFERRED_FROM_PID.sub('P', 'S'), distributor_qid]
+end
+
+def platform_qualifiers(platform_qids)
+  platform_qids.flat_map { |q| [PLATFORM_PID, q] }
+end
+
+# QuickStatements commands for a Steam ID with the platform qualifiers and,
+# unless the item has it, P750 Steam (without qualifiers).
+def steam_commands(qid, value, platform_qids, reference, has_distributor:)
+  qualifiers = platform_qualifiers(platform_qids)
+  commands = [tsv_row([qid, STORES['steam'][:pid], "\"#{value}\"", *qualifiers, *reference])]
+  commands << tsv_row(distributor_command(qid, STORES['steam'][:distributor])) unless has_distributor
+  commands
+end
+
 # @return [Array<String>] every distinct ID for a store that an IGDB game
 #   links to, from its external games and its websites.
 def store_ids(game, store)
@@ -235,11 +287,24 @@ STORES.each_key { |key| puts "  #{igdb_slugs_by_store_id[key].count} distinct #{
 
 # --- Wikidata ---
 igdb_slugs_by_item = Hash.new { |h, k| h[k] = [] }
+# Item => Steam IDs whose statement has a platform qualifier.
+steam_ids_with_platform_by_item = Hash.new { |h, k| h[k] = [] }
+# Item => its distributed by (P750) values that are one of the stores.
+distributors_by_item = Hash.new { |h, k| h[k] = [] }
 store_ids_by_item = STORES.keys.to_h { |key| [key, Hash.new { |h, k| h[k] = [] }] }
 items_by_store_id = STORES.keys.to_h { |key| [key, Hash.new { |h, k| h[k] = [] }] }
-read_sparql_tsv(ids_path).each do |row|
+id_rows = read_sparql_tsv(ids_path)
+unless id_rows.first&.key?('distributor')
+  abort "#{ids_path} has no distributor column. It's from an older version of wd-igdb-store-ids.rq; run the query again."
+end
+id_rows.each do |row|
   qid = qid_from(row['item'])
   next if qid.nil?
+
+  with_platform = literal_from(row['steam_with_platform'])
+  steam_ids_with_platform_by_item[qid] |= [with_platform] unless with_platform.empty?
+  distributor = qid_from(literal_from(row['distributor']))
+  distributors_by_item[qid] |= [distributor] unless distributor.nil?
 
   igdb = literal_from(row['igdb'])
   igdb_slugs_by_item[qid] |= [igdb] unless igdb.empty?
@@ -266,21 +331,53 @@ if steam_names.nil?
 else
   puts "#{steam_names.count} apps in the Steam app list (downloaded #{File.mtime(SteamAppList::PATH).strftime('%Y-%m-%d %H:%M')})."
 end
+steam_platforms = SteamPlatforms.load
+puts "Platforms fetched for #{steam_platforms.count} Steam apps."
+steam_ids_to_check = []
 
 # --- Candidates ---
 statements = STORES.keys.to_h { |key| [key, []] }
 mismatches = []
 skipped = []
+steam_fixes = []
 
 STORES.each do |key, store|
   pid = store[:pid]
   candidates = []
 
   igdb_slugs_by_item.keys.sort_by { |q| q[1..].to_i }.each do |qid|
-    next if store_ids_by_item[key].key?(qid)
-
     slugs = igdb_slugs_by_item[qid]
     games = slugs.map { |slug| igdb_by_slug[slug] }
+
+    if store_ids_by_item[key].key?(qid)
+      # The item has a Steam ID already. If it's the one IGDB links to, add
+      # what it's missing: platform qualifiers and P750 Steam.
+      existing = store_ids_by_item[key][qid]
+      next unless key == 'steam' && existing.length == 1 && games.none?(&:nil?)
+      next unless games.flat_map { |g| g[key] }.uniq == existing
+
+      value = existing.first
+      needs_platforms = !steam_ids_with_platform_by_item[qid].include?(value)
+      needs_distributor = !distributors_by_item[qid].include?(store[:distributor])
+      next unless needs_platforms || needs_distributor
+
+      unless steam_platforms.key?(value)
+        steam_ids_to_check << value
+        skipped << [key, qid, pid, value, 'has this Steam ID; platforms not fetched yet, run steam_platforms_fetch.rb']
+        next
+      end
+      platform_qids = steam_platforms[value]
+      if platform_qids.nil? || platform_qids.empty?
+        skipped << [key, qid, pid, value, "has this Steam ID; Steam #{platform_qids.nil? ? "didn't return the app" : 'lists no platforms'}"]
+        next
+      end
+
+      game = games.find { |g| g[key].include?(value) }
+      # The Steam ID statement exists, so this only adds qualifiers to it.
+      steam_fixes << tsv_row([qid, pid, "\"#{value}\"", *platform_qualifiers(platform_qids)]) if needs_platforms
+      steam_fixes << tsv_row(distributor_command(qid, STORES['steam'][:distributor])) if needs_distributor
+      next
+    end
     if games.any?(&:nil?)
       missing = slugs.reject { |slug| igdb_by_slug.key?(slug) }
       # Only worth reporting if another of the item's IGDB IDs has a link.
@@ -303,12 +400,11 @@ STORES.each do |key, store|
 
   value_counts = candidates.map { |_, value, _| value }.tally
   candidates.each do |qid, value, game|
-    command = tsv_row([
-      qid, pid, "\"#{value}\"",
-      STATED_IN_PID.sub('P', 'S'), IGDB_QID,
-      IGDB_PID.sub('P', 'S'), "\"#{game['slug']}\"",
-      RETRIEVED_PID.sub('P', 'S'), retrieved
-    ])
+    reference = igdb_reference(game['slug'], retrieved)
+    commands = [tsv_row([qid, pid, "\"#{value}\"", *reference])]
+    unless distributors_by_item[qid].include?(store[:distributor])
+      commands << tsv_row(distributor_command(qid, store[:distributor]))
+    end
     linked_from = igdb_slugs_by_store_id[key][value]
     in_use = items_by_store_id[key][value]
 
@@ -335,12 +431,25 @@ STORES.each do |key, store|
         elsif !names_match?(names_by_item[qid] + [game['name']], steam_names[value])
           reasons << "Steam name #{steam_names[value].inspect} doesn't match"
         end
+
+        unless steam_platforms.key?(value)
+          steam_ids_to_check << value
+          skipped << [key, qid, pid, value, 'platforms not fetched yet, run steam_platforms_fetch.rb']
+          next
+        end
+        platform_qids = steam_platforms[value]
+        if platform_qids.nil?
+          reasons << "Steam didn't return the app's platforms"
+        elsif platform_qids.empty?
+          reasons << 'Steam lists no platforms'
+        end
+        commands = steam_commands(qid, value, platform_qids || [], reference, has_distributor: distributors_by_item[qid].include?(store[:distributor]))
       end
 
       if reasons.empty?
-        statements[key] << command
+        statements[key].concat(commands)
       else
-        mismatches << [key, qid, pid, value, reasons.join('; '), game['slug'], game['name'], names_by_item[qid].first(8).join(' / '), command]
+        mismatches << [key, qid, pid, value, reasons.join('; '), game['slug'], game['name'], names_by_item[qid].first(8).join(' / '), commands.join('||')]
       end
     end
   end
@@ -351,6 +460,14 @@ STORES.each_key do |key|
   path = File.join(out_dir, "igdb-#{key}-ids.qs.tsv")
   File.write(path, statements[key].map { |s| "#{s}\n" }.join)
   puts "#{statements[key].count} #{key} statements written to #{path}."
+end
+fixes_path = File.join(out_dir, 'igdb-steam-qualifiers.qs.tsv')
+File.write(fixes_path, steam_fixes.map { |s| "#{s}\n" }.join)
+puts "#{steam_fixes.count} platform qualifier and P750 Steam commands for items that already have the Steam ID written to #{fixes_path}."
+to_check_path = File.join(out_dir, 'igdb-steam-ids-to-check.txt')
+File.write(to_check_path, steam_ids_to_check.uniq.map { |id| "#{id}\n" }.join)
+if steam_ids_to_check.any?
+  puts "#{steam_ids_to_check.uniq.count} Steam apps need their platforms fetched: run `ruby steam_platforms_fetch.rb`, then this again."
 end
 mismatches_path = File.join(out_dir, 'igdb-store-ids-name-mismatches.tsv')
 skipped_path = File.join(out_dir, 'igdb-store-ids-skipped.tsv')
