@@ -81,7 +81,7 @@ module AniListAPI
             "`ruby #{File.join(__dir__, 'anilist_dump.rb')} #{type.downcase}` or set USE_ANILIST_API=1."
     end
 
-    puts "Reading AniList #{type.downcase} from #{path} (downloaded #{File.mtime(path).strftime('%Y-%m-%d %H:%M')})."
+    log "Reading AniList #{type.downcase} from #{path} (downloaded #{File.mtime(path).strftime('%Y-%m-%d %H:%M')})."
     File.foreach(path).map { |line| JSON.parse(line) }
   end
 
@@ -102,12 +102,12 @@ module AniListAPI
     if File.exist?(partial_path) && !File.zero?(partial_path)
       truncate_incomplete_line(partial_path)
       count, last_id = partial_stats(partial_path)
-      puts "Resuming the AniList #{type.downcase} download after ID #{last_id} (#{count} already downloaded)."
+      log "Resuming the AniList #{type.downcase} download after ID #{last_id} (#{count} already downloaded)."
     else
       File.write(partial_path, '')
       count = 0
       last_id = 0
-      puts "Downloading every #{type.downcase} from AniList into #{path}."
+      log "Downloading every #{type.downcase} from AniList into #{path}."
     end
 
     complete = File.open(partial_path, 'a') do |file|
@@ -115,11 +115,11 @@ module AniListAPI
         file.write(media.map { |m| "#{JSON.generate(m)}\n" }.join)
         file.flush
         count += media.length
-        puts "#{count} #{type.downcase} downloaded so far (up to ID #{media.last['id']})."
+        log "#{count} #{type.downcase} downloaded so far (up to ID #{media.last['id']})."
       end
     end
 
-    abort "The AniList #{type.downcase} download stopped early. Run it again to resume." unless complete
+    abort "[#{timestamp}] The AniList #{type.downcase} download stopped early. Run it again to resume." unless complete
 
     # Drop any duplicates while finalizing, just in case.
     seen = {}
@@ -134,7 +134,7 @@ module AniListAPI
     end
     File.rename("#{path}.tmp", path)
     File.delete(partial_path)
-    puts "Saved #{seen.size} #{type.downcase} to #{path}."
+    log "Saved #{seen.size} #{type.downcase} to #{path}."
   end
 
   #
@@ -198,7 +198,7 @@ module AniListAPI
     return nil if data.nil?
 
     max_id = data.dig('media', 0, 'id')
-    puts "Highest AniList #{type.downcase} ID is #{max_id}."
+    log "Highest AniList #{type.downcase} ID is #{max_id}."
     max_id
   end
 
@@ -249,19 +249,25 @@ module AniListAPI
       status = response.code.to_i
 
       if (status == 429 || status >= 500) && attempts < MAX_ATTEMPTS
-        wait = response['Retry-After'].to_i
-        unless wait.positive?
-          wait = status == 429 ? RATE_LIMIT_TIMEOUT : [2**attempts, 60].min
-        end
-        puts "AniList returned HTTP #{status}, retrying in #{wait}s (attempt #{attempts}/#{MAX_ATTEMPTS})."
-        sleep wait
+        retry_after = response['Retry-After'].to_i
+        wait = if retry_after.positive?
+                 retry_after
+               else
+                 status == 429 ? RATE_LIMIT_TIMEOUT : [2**attempts, 60].min
+               end
+        reason = if status == 429
+                   "Rate limited by AniList (HTTP 429#{", Retry-After: #{retry_after}s" if retry_after.positive?})"
+                 else
+                   "AniList returned HTTP #{status}"
+                 end
+        wait_with_notice(wait, "#{reason}, retry #{attempts}/#{MAX_ATTEMPTS - 1}")
         next
       end
 
       wait_for_rate_limit_window(response)
 
       data = (JSON.parse(response.body) rescue nil)&.dig('data', 'Page')
-      puts "Unexpected response for #{variables.inspect} (HTTP #{status}): #{response.body}" if data.nil?
+      log "Unexpected response for #{variables.inspect} (HTTP #{status}): #{response.body}" if data.nil?
       return data
     end
   end
@@ -288,7 +294,7 @@ module AniListAPI
     interval = 60.0 / limit * RATE_LIMIT_HEADROOM
     return if interval == @request_interval
 
-    puts "AniList rate limit is #{limit}/minute, spacing requests #{interval.round(2)}s apart." unless FIXED_REQUEST_INTERVAL
+    log "AniList rate limit is #{limit}/minute, spacing requests #{interval.round(2)}s apart." unless FIXED_REQUEST_INTERVAL
     @request_interval = interval
   end
 
@@ -301,7 +307,23 @@ module AniListAPI
     wait = reset_at.positive? ? reset_at - Time.now.to_i + 1 : RATE_LIMIT_TIMEOUT
     return unless wait.positive?
 
-    puts "AniList rate limit window used up, waiting #{wait}s."
-    sleep wait
+    wait_with_notice(wait, 'AniList rate limit window used up (X-RateLimit-Remaining: 0)')
+  end
+
+  # Sleep for longer than the usual request spacing, saying why and until when.
+  def self.wait_with_notice(seconds, reason)
+    resume_at = Time.now + seconds
+    log "WAITING: #{reason}. Sleeping #{seconds}s, until #{resume_at.strftime('%H:%M:%S')}."
+    sleep seconds
+    log 'Done waiting, resuming.'
+  end
+
+  # Print a line prefixed with the current time.
+  def self.log(message)
+    puts "[#{timestamp}] #{message}"
+  end
+
+  def self.timestamp
+    Time.now.strftime('%Y-%m-%d %H:%M:%S')
   end
 end
