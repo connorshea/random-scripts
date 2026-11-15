@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# DEPRECATED: Giant Bomb changed its URLs and IDs, so this no longer works.
+
 # Given a JSON file for all IGDB games, it transforms the
 # igdb_games.json into a better format for OpenRefine to
 # consume. Also pulls some extra data about the GiantBomb

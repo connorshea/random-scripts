@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# DEPRECATED: Giant Bomb changed its URLs and IDs, and this builds
+# microtransaction.zone IDs from Giant Bomb IDs, so it no longer works.
+
 # ENVIRONMENT VARIABLES:
 #
 # WIKIDATA_USERNAME: username for Wikidata account
@@ -24,9 +27,9 @@ require 'net/http'
 require 'nokogiri'
 require 'mediawiki_api'
 require 'mediawiki_api/wikidata/wikidata_client'
-require_relative '../wikidata_helper.rb'
-require_relative '../wikidata_bot_client.rb'
-require_relative '../wikidata_importer.rb'
+require_relative '../../wikidata_helper.rb'
+require_relative '../../wikidata_bot_client.rb'
+require_relative '../../wikidata_importer.rb'
 
 include WikidataHelper
 

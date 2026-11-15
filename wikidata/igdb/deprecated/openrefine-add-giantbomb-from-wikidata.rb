@@ -1,3 +1,5 @@
+# DEPRECATED: Giant Bomb changed its URLs and IDs, so this no longer works.
+
 # Given a CSV from Wikidata and a CSV from OpenRefine, this script will
 # add the GiantBomb ID from Wikidata to the OpenRefine CSV.
 #

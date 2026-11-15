@@ -1,3 +1,5 @@
+# DEPRECATED: Giant Bomb changed its URLs and IDs, so this no longer works.
+
 #####
 # Use the IGDB games transformed JSON to get GiantBomb IDs for games and then
 # use that information to match IGDB IDs to Wikidata items that already have
@@ -26,8 +28,8 @@ require 'sparql/client'
 # For comparing using Levenshtein Distance.
 # https://stackoverflow.com/questions/16323571/measure-the-distance-between-two-strings-with-ruby
 require "rubygems/text"
-require_relative '../wikidata_helper.rb'
-require_relative '../wikidata_bot_client.rb'
+require_relative '../../wikidata_helper.rb'
+require_relative '../../wikidata_bot_client.rb'
 
 include WikidataHelper
 
