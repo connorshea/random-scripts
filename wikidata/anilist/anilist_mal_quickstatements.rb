@@ -33,8 +33,9 @@
 #   titles or Wikidata names, so AniList's link to MAL is checked too,
 # - both IDs match the properties' format constraint, [1-9]\d*.
 #
-# MAL titles come from data/mal_<type>.jsonl, a cache of Jikan responses. The
-# generator writes the MAL IDs it needs to data/anilist-mal-<type>-mal-ids-to-check.txt;
+# MAL titles come from data/mal_<type>.jsonl, a cache of Jikan or MAL API
+# responses. The generator writes the MAL IDs it needs to
+# data/anilist-mal-<type>-mal-ids-to-check.txt;
 # candidates whose MAL titles aren't cached yet are skipped. So the workflow
 # is: run this, run `ruby jikan_fetch.rb <type>`, then run this again.
 #
@@ -162,7 +163,7 @@ anilist_by_mal_id = anilist.reject { |media| media['idMal'].nil? }.group_by { |m
 retrieved = File.mtime(AniListAPI.dump_path(type)).utc.strftime('+%Y-%m-%dT00:00:00Z/11')
 puts "#{anilist.count} #{kind} in the AniList dump, #{anilist_by_mal_id.count} distinct MAL IDs."
 mal = JikanAPI.load(kind)
-puts "#{mal.count} MAL #{kind} entries cached from Jikan."
+puts "#{mal.count} MAL #{kind} entries cached."
 
 # --- Wikidata IDs ---
 anilist_ids_by_item = Hash.new { |h, k| h[k] = [] }

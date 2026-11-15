@@ -4,9 +4,12 @@
 # USAGE:
 #
 #   ruby jikan_fetch.rb anime|manga [ids-file]
+#   MAL_CLIENT_ID=... ruby jikan_fetch.rb anime|manga [ids-file]
 #
 # Fetches the MyAnimeList titles of every MAL ID listed in ids-file (one per
-# line) from Jikan, an unofficial MAL API, into data/mal_<type>.jsonl. IDs
+# line) into data/mal_<type>.jsonl, from Jikan, an unofficial MAL API, or,
+# when MAL_CLIENT_ID is set, from MAL's official API (get a client ID at
+# https://myanimelist.net/apiconfig). See jikan_api.rb. IDs
 # that are already cached are skipped, so it's safe to run again after an
 # interruption.
 #

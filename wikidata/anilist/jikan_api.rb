@@ -5,14 +5,23 @@ require 'net/http'
 require 'time'
 require_relative './anilist_api.rb'
 
-# Minimal client for Jikan (https://jikan.moe), an unofficial MyAnimeList API,
-# used to fetch the titles MAL has for an anime or manga ID so they can be
-# checked against AniList's titles before linking the two.
+# Fetches the titles MyAnimeList has for an anime or manga ID, so they can be
+# checked against AniList's titles before linking the two. Two sources give
+# the same titles:
+#
+# - Jikan (https://jikan.moe), an unofficial MAL API that needs no key. The
+#   default.
+# - MAL's official API (https://myanimelist.net/apiconfig/references/api/v2),
+#   used when MAL_CLIENT_ID is set. Register a client at
+#   https://myanimelist.net/apiconfig to get a client ID. Only the client ID
+#   is needed, sent in the X-MAL-CLIENT-ID header, which isn't logged.
 #
 # Responses are cached in data/mal_<type>.jsonl (one line per MAL ID), so each
-# ID is only ever fetched once. 404s are cached too.
+# ID is only ever fetched once, whichever source it came from. 404s are cached
+# too.
 module JikanAPI
   HOST = 'api.jikan.moe'
+  MAL_HOST = 'api.myanimelist.net'
   USER_AGENT = AniListAPI::USER_AGENT
   # Jikan allows 3 requests/second and 60/minute. Stay under the per-minute
   # limit with some headroom.
@@ -66,12 +75,12 @@ module JikanAPI
     return 0 if todo.empty?
 
     minutes = (todo.count * REQUEST_INTERVAL / 60.0).ceil
-    AniListAPI.log "Fetching them from Jikan, about #{minutes} minute(s) at one request every #{REQUEST_INTERVAL}s."
+    AniListAPI.log "Fetching them from #{source_name}, about #{minutes} minute(s) at one request every #{REQUEST_INTERVAL}s."
 
     failed = 0
     consecutive_failures = 0
     # Connected lazily, and reconnected after a network error, by fetch_entry.
-    http = Net::HTTP.new(HOST, 443)
+    http = Net::HTTP.new(mal_client_id ? MAL_HOST : HOST, 443)
     http.use_ssl = true
     File.open(cache_path(type), 'a') do |file|
       todo.each_with_index do |id, index|
@@ -80,7 +89,7 @@ module JikanAPI
           failed += 1
           consecutive_failures += 1
           if consecutive_failures >= MAX_CONSECUTIVE_FAILURES
-            AniListAPI.log "#{consecutive_failures} IDs in a row failed, so Jikan is probably down. Stopping; " \
+            AniListAPI.log "#{consecutive_failures} IDs in a row failed, so #{source_name} is probably down. Stopping; " \
                            "what was fetched is saved. Run this again later to continue."
             return todo.count - index - 1 + failed
           end
@@ -102,7 +111,12 @@ module JikanAPI
     attempts = 0
     loop do
       attempts += 1
-      request = Net::HTTP::Get.new("/v4/#{type}/#{id}")
+      if mal_client_id
+        request = Net::HTTP::Get.new("/v2/#{type}/#{id}?fields=alternative_titles")
+        request['X-MAL-CLIENT-ID'] = mal_client_id
+      else
+        request = Net::HTTP::Get.new("/v4/#{type}/#{id}")
+      end
       request['User-Agent'] = USER_AGENT
       request['Accept'] = 'application/json'
 
@@ -119,10 +133,16 @@ module JikanAPI
 
       case status
       when 200
-        data = JSON.parse(response.body)['data']
-        return { 'mal_id' => id.to_i, 'status' => 200, 'titles' => titles_from(data), 'fetched_at' => Time.now.utc.iso8601 }
+        body = JSON.parse(response.body)
+        titles = mal_client_id ? titles_from_mal(body) : titles_from(body['data'])
+        return { 'mal_id' => id.to_i, 'status' => 200, 'titles' => titles, 'source' => source_key, 'fetched_at' => Time.now.utc.iso8601 }
       when 404
-        return { 'mal_id' => id.to_i, 'status' => 404, 'titles' => [], 'fetched_at' => Time.now.utc.iso8601 }
+        return { 'mal_id' => id.to_i, 'status' => 404, 'titles' => [], 'source' => source_key, 'fetched_at' => Time.now.utc.iso8601 }
+      when 401, 403
+        if mal_client_id
+          # Every request would fail the same way. What was fetched is saved.
+          abort "[#{AniListAPI.timestamp}] MAL refused the request (HTTP #{status}). Check MAL_CLIENT_ID."
+        end
       end
 
       # 429, 5xx (Jikan returns these when MAL is slow or down) or a network
@@ -139,7 +159,7 @@ module JikanAPI
              else
                status == 429 ? RATE_LIMIT_TIMEOUT : [2**attempts, 60].min
              end
-      AniListAPI.wait_with_notice(wait, "Jikan request for MAL #{type} #{id} failed (#{reason}), retry #{attempts}/#{MAX_ATTEMPTS - 1}")
+      AniListAPI.wait_with_notice(wait, "#{source_name} request for MAL #{type} #{id} failed (#{reason}), retry #{attempts}/#{MAX_ATTEMPTS - 1}")
     end
   end
 
@@ -150,6 +170,28 @@ module JikanAPI
     titles += [data['title'], data['title_english'], data['title_japanese']]
     titles += Array(data['title_synonyms'])
     titles.compact.map(&:strip).reject(&:empty?).uniq
+  end
+
+  # Every title in a MAL API v2 anime/manga object: the main title, plus the
+  # English, Japanese and synonym alternative titles.
+  def self.titles_from_mal(data)
+    alt = data['alternative_titles'] || {}
+    titles = [data['title'], alt['en'], alt['ja']] + Array(alt['synonyms'])
+    titles.compact.map(&:strip).reject(&:empty?).uniq
+  end
+
+  # @return [String, nil] MAL_CLIENT_ID, if set.
+  def self.mal_client_id
+    id = ENV['MAL_CLIENT_ID'].to_s.strip
+    id.empty? ? nil : id
+  end
+
+  def self.source_key
+    mal_client_id ? 'mal' : 'jikan'
+  end
+
+  def self.source_name
+    mal_client_id ? 'the MAL API' : 'Jikan'
   end
 
   def self.throttle
