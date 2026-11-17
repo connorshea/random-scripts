@@ -1,0 +1,23 @@
+# English and multilingual labels and aliases of every item with an IGDB game
+# ID (P5794) or a Steam application ID (P1733) and no Lutris game ID (P7597),
+# i.e. the items lutris_quickstatements.rb can add a Lutris ID to. Items can
+# repeat names; the generator removes duplicates.
+#
+# Uses QLever's @lang@predicate syntax, which reads the per-language
+# triples directly instead of filtering every label by LANG().
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?item ?name WHERE {
+  {
+    SELECT DISTINCT ?item WHERE {
+      VALUES ?p { wdt:P5794 wdt:P1733 }
+      ?item ?p [] .
+      MINUS { ?item wdt:P7597 [] }
+    }
+  }
+  { ?item @en@rdfs:label ?name }
+  UNION { ?item @mul@rdfs:label ?name }
+  UNION { ?item @en@skos:altLabel ?name }
+  UNION { ?item @mul@skos:altLabel ?name }
+}

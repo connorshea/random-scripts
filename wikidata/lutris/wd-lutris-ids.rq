@@ -1,0 +1,13 @@
+# Every Lutris game ID (P7597) of any rank, and every non-deprecated IGDB game
+# ID (P5794) and Steam application ID (P1733), with the item it's on. Each row
+# has one of the three columns.
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+PREFIX wikibase: <http://wikiba.se/ontology#>
+SELECT ?item ?lutris ?igdb ?steam WHERE {
+  { ?item p:P7597 ?st . ?st ps:P7597 ?lutris . }
+  UNION
+  { ?item p:P5794 ?st . ?st ps:P5794 ?igdb ; wikibase:rank ?rank . FILTER(?rank != wikibase:DeprecatedRank) }
+  UNION
+  { ?item p:P1733 ?st . ?st ps:P1733 ?steam ; wikibase:rank ?rank . FILTER(?rank != wikibase:DeprecatedRank) }
+}
