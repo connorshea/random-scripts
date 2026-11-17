@@ -1,0 +1,22 @@
+# English and multilingual labels and aliases of every item with a Steam
+# application ID (P1733) and no PCGamingWiki ID (P6337), i.e. the items
+# pcgw_quickstatements.rb can add a PCGamingWiki ID to. Items can repeat
+# names; the generator removes duplicates.
+#
+# Uses QLever's @lang@predicate syntax, which reads the per-language
+# triples directly instead of filtering every label by LANG().
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?item ?name WHERE {
+  {
+    SELECT DISTINCT ?item WHERE {
+      ?item wdt:P1733 [] .
+      MINUS { ?item wdt:P6337 [] }
+    }
+  }
+  { ?item @en@rdfs:label ?name }
+  UNION { ?item @mul@rdfs:label ?name }
+  UNION { ?item @en@skos:altLabel ?name }
+  UNION { ?item @mul@skos:altLabel ?name }
+}

@@ -1,0 +1,11 @@
+# Every PCGamingWiki ID (P6337) of any rank, and every non-deprecated Steam
+# application ID (P1733), with the item it's on. Each row has one of the two
+# columns.
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+PREFIX wikibase: <http://wikiba.se/ontology#>
+SELECT ?item ?pcgw ?steam WHERE {
+  { ?item p:P6337 ?st . ?st ps:P6337 ?pcgw . }
+  UNION
+  { ?item p:P1733 ?st . ?st ps:P1733 ?steam ; wikibase:rank ?rank . FILTER(?rank != wikibase:DeprecatedRank) }
+}
