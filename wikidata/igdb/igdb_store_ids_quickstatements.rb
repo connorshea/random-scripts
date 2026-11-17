@@ -74,7 +74,7 @@
 #   why.
 
 require 'json'
-require 'rubygems/text'
+require_relative './game_names.rb'
 require_relative './steam_app_list.rb'
 require_relative './steam_platforms.rb'
 require_relative './sparql_tsv.rb'
@@ -137,32 +137,6 @@ STORES = {
     format: %r{\A(?:movie|game)/[a-z\d]++(?:_{1,2}[a-z\d]++){0,10}+\z}
   }
 }.freeze
-
-LEVENSHTEIN = Class.new.extend(Gem::Text).method(:levenshtein_distance)
-
-# Lowercase, NFKC-normalize, drop trademark signs and a trailing
-# "(video game)", treat "&" as "and", then drop everything that isn't a
-# letter or digit.
-def normalize_name(name)
-  # Trademark signs go first, NFKC would turn ™ into "TM".
-  name.to_s.gsub(/[™®©]/, '').unicode_normalize(:nfkc).downcase
-      .sub(/\s*\((?:\d{4} )?video game\)\z/, '')
-      .gsub('&', ' and ')
-      .gsub(/[^\p{L}\p{N}]+/, '')
-end
-
-# True if any Wikidata name matches the IGDB name, exactly after normalizing,
-# or within a Levenshtein distance of 2 for names of 8 or more characters.
-def names_match?(wikidata_names, igdb_name)
-  wd = wikidata_names.map { |n| normalize_name(n) }.reject(&:empty?).uniq
-  igdb = normalize_name(igdb_name)
-  return false if igdb.empty?
-  return true if wd.include?(igdb)
-
-  wd.any? do |name|
-    [name.length, igdb.length].min >= 8 && (name.length - igdb.length).abs <= 2 && LEVENSHTEIN.call(name, igdb) <= 2
-  end
-end
 
 # Epic and GOG IDs are slugs. IGDB sometimes links a game to a bundle or an
 # unrelated product ("cossacks_ii_anthology" for Cossacks II), so a slug that
@@ -409,7 +383,7 @@ STORES.each do |key, store|
       if reasons.empty?
         statements[key].concat(commands)
       else
-        mismatches << [key, qid, pid, value, reasons.join('; '), game['slug'], game['name'], names_by_item[qid].first(8).join(' / '), commands.join('||')]
+        mismatches << [key, qid, pid, value, reasons.join('; '), game['slug'], game['name'], names_by_item[qid].first(8).join(' / '), commands.map { |c| c.tr("\t", '|') }.join('||')]
       end
     end
   end
